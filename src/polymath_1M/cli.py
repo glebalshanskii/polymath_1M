@@ -9,6 +9,7 @@ from .collector.replay import replay_run
 from .collector.runner import run_collector
 from .historical.download import download_kacho_dataset
 from .historical.overlap import run_pmxt_overlap_smoke
+from .screening.openmarket import run_openmarket_sanity
 from .screening.pmxt_dataset import build_stage4_pmxt_dataset
 from .screening.run import run_stage4_screening
 from .screening.universe import build_stage4_universe
@@ -150,6 +151,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/screening",
         help="ignored directory for Stage 4 screening artifacts",
     )
+    sanity = subparsers.add_parser(
+        "stage4-openmarket-sanity",
+        help="compare one PMXT market with the pinned independent OpenMarket archive",
+    )
+    sanity.add_argument(
+        "--config",
+        default="cfg/experiments/stage4_pmxt_screening.json",
+        help="path to the frozen Stage 4 screening config",
+    )
     return parser
 
 
@@ -200,3 +210,5 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(build_stage4_pmxt_dataset(args.config))
     elif args.command == "stage4-screen":
         print(run_stage4_screening(args.config, args.output_root))
+    elif args.command == "stage4-openmarket-sanity":
+        print(run_openmarket_sanity(args.config))
