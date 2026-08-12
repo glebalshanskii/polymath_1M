@@ -173,7 +173,7 @@ prospective paper trading.
   fills, net PnL `-824.07 USDC`. Это отрицательный engineering smoke с
   permissive config, а не оценка пяти candidate configs.
 - Future settlement mutation не меняет side/fill/edge; analytical fee/book/PnL
-  oracle, adapter tests и весь suite из 29 tests проходят.
+  oracle, worst-price guard, adapter tests и весь suite из 31 tests проходят.
 - Два одинаковых запуска дали одинаковые SHA-256 для effective config,
   dataset manifest, model, decisions и summary.
 

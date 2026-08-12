@@ -55,6 +55,10 @@ def _batch(outcome_up: torch.Tensor | None = None) -> DecisionBatch:
 
 
 class StrategyEngineTest(unittest.TestCase):
+    def test_decision_batch_rejects_inconsistent_shapes(self) -> None:
+        with self.assertRaisesRegex(ValueError, "current_mid"):
+            replace(_batch(), current_mid=torch.zeros((4, 3)))
+
     def test_platform_fee_matches_official_example(self) -> None:
         shares = torch.tensor([[[100.0]]], dtype=torch.float64)
         prices = torch.tensor([[[0.5]]], dtype=torch.float64)

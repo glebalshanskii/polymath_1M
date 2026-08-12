@@ -1,7 +1,7 @@
 # Этап 3: historical adapters и minimal strategy engine
 
 - Дата run: 2026-08-13
-- Code commit: `165c50ea8225cb9faf42ca92b3c1ce1d1e076e88`
+- Code commit: `8c6bab5ba35a729b0889b8013e944e66212e8068`
 - Device/dtype: CPU, `torch.float64`
 - Seed: `20260813`
 - Решение: [ADR-0005](../adr/0005-stage3-strategy-engine.md)
@@ -39,7 +39,7 @@ order/fill/settlement branches. Пять article-derived configs сохране�
 отдельно и на этих 1,200 markets не выбирались и не оценивались.
 
 Clean run artifacts:
-`outputs/backtests/20260812T231417Z_stage3_kacho_btc_5m_tiny/`.
+`outputs/backtests/20260812T231639Z_stage3_kacho_btc_5m_tiny/`.
 Detailed decisions и dataset не коммитятся.
 
 ## Results
@@ -76,13 +76,14 @@ Maximum absolute difference — `0.00` при gate `≤0.02`. PMXT prefix сод
 конкретный overlap, но не доказывает глобальную completeness PMXT.
 
 Artifact:
-`outputs/overlap/20260812T231422Z_stage3_pmxt_kacho_overlap_smoke/overlap_summary.json`.
+`outputs/overlap/20260812T231645Z_stage3_pmxt_kacho_overlap_smoke/overlap_summary.json`.
 
 ## Tests and invariants
 
-- 29 unit/integration tests passed;
+- 31 unit/integration tests passed;
 - official fee example: 100 shares at 0.50 and rate 0.07 = 1.75 USDC;
 - analytical two-level FAK shares/cost/fee/PnL oracle passed;
+- worst-price limit исключает более дорогие levels и оставляет partial fill;
 - изменение future settlement меняет PnL, но не side/fill/net edge;
 - Kacho exact snapshot join and inferred-label policy passed;
 - PMXT receive-time cutoff, snapshot initialization and L2 update passed;

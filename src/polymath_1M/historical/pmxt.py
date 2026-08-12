@@ -45,7 +45,7 @@ class PmxtArchiveConfig:
 @dataclass(frozen=True)
 class PmxtBookSnapshot:
     condition_id: str
-    receive_timestamp_ms: int
+    decision_timestamp_ms: int
     token_ids: tuple[str, str]
     bids: torch.Tensor
     asks: torch.Tensor
@@ -307,7 +307,7 @@ def replay_pmxt_book(
         depth_sizes[side_index, : sizes.numel()] = sizes
     return PmxtBookSnapshot(
         condition_id=condition_id.lower(),
-        receive_timestamp_ms=decision_timestamp_ms,
+        decision_timestamp_ms=decision_timestamp_ms,
         token_ids=token_ids,
         bids=top_bids,
         asks=top_asks,

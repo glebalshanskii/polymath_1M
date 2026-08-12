@@ -11,6 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from polymath_1M.historical.config import load_kacho_dataset_config
+from polymath_1M.historical.download import download_kacho_dataset
 from polymath_1M.historical.kacho import load_kacho_decision_batch
 
 
@@ -93,6 +94,13 @@ class KachoAdapterTest(unittest.TestCase):
             }
             (dataset_dir / "manifest.json").write_text(
                 json.dumps(manifest), encoding="utf-8"
+            )
+
+            download_kacho_dataset(config_path, root, assets=["BTC"])
+            stable_manifest = (dataset_dir / "manifest.json").read_bytes()
+            download_kacho_dataset(config_path, root, assets=["BTC"])
+            self.assertEqual(
+                (dataset_dir / "manifest.json").read_bytes(), stable_manifest
             )
 
             batch = load_kacho_decision_batch(

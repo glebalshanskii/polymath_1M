@@ -15,7 +15,10 @@ from typing import Any
 import pyarrow
 import torch
 
-from polymath_1M.historical.config import load_kacho_dataset_config
+from polymath_1M.historical.config import (
+    KachoDatasetConfig,
+    load_kacho_dataset_config,
+)
 from polymath_1M.domain import DecisionBatch
 from polymath_1M.historical.kacho import load_kacho_decision_batch
 
@@ -55,6 +58,36 @@ def _write_json(path: Path, payload: Any) -> None:
         json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def _selected_dataset_manifest(
+    dataset_config: KachoDatasetConfig,
+    source_manifest: dict[str, Any],
+    assets: tuple[str, ...],
+) -> dict[str, Any]:
+    inventory = {str(item["path"]): item for item in source_manifest["files"]}
+    files = []
+    for spec in dataset_config.select(assets):
+        item = inventory[spec.path]
+        files.append(
+            {
+                "asset": spec.asset,
+                "kind": spec.kind,
+                "path": spec.path,
+                "bytes": int(item["bytes"]),
+                "sha256": str(item["sha256"]),
+                "source_url": str(item["source_url"]),
+            }
+        )
+    return {
+        "schema_version": 1,
+        "dataset_id": dataset_config.dataset_id,
+        "revision": dataset_config.revision,
+        "license": dataset_config.license,
+        "config_sha256": dataset_config.config_sha256,
+        "assets": list(assets),
+        "files": files,
+    }
 
 
 def _split_indices(
@@ -290,8 +323,12 @@ def run_kacho_backtest(
     _write_json(run_dir / "effective_config.json", config_payload)
     dataset_dir = dataset_config.dataset_dir(config.dataset_root)
     dataset_manifest_path = dataset_dir / "manifest.json"
-    dataset_manifest = json.loads(dataset_manifest_path.read_text(encoding="utf-8"))
-    _write_json(run_dir / "dataset_manifest.json", dataset_manifest)
+    source_manifest = json.loads(dataset_manifest_path.read_text(encoding="utf-8"))
+    dataset_manifest = _selected_dataset_manifest(
+        dataset_config, source_manifest, config.assets
+    )
+    run_dataset_manifest_path = run_dir / "dataset_manifest.json"
+    _write_json(run_dataset_manifest_path, dataset_manifest)
     _write_json(
         run_dir / "model.json",
         {
@@ -339,7 +376,7 @@ def run_kacho_backtest(
             "config_sha256": config.config_sha256,
             "strategy_config_sha256": strategy.config_sha256,
             "dataset_config_sha256": dataset_config.config_sha256,
-            "dataset_manifest_sha256": _sha256(dataset_manifest_path),
+            "dataset_manifest_sha256": _sha256(run_dataset_manifest_path),
             "seed": config.seed,
             "device": str(device),
             "dtype": config.dtype,

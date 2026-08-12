@@ -73,6 +73,8 @@ def load_backtest_config(path: str | Path) -> BacktestConfig:
         )
     if int(payload["max_markets"]) < 5:
         raise BacktestConfigError("max_markets must be at least five")
+    if not isinstance(payload["assets"], list) or not payload["assets"]:
+        raise BacktestConfigError("assets must be a nonempty list")
     decision_seconds = int(payload["decision_seconds_before_end"])
     transition_seconds = int(payload["transition_horizon_seconds"])
     if decision_seconds <= 0 or transition_seconds <= 0:

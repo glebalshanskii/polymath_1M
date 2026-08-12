@@ -129,6 +129,7 @@ def download_kacho_dataset(
     dataset_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = dataset_dir / "manifest.json"
     inventory = _load_existing_manifest(manifest_path, config)
+    changed = not manifest_path.is_file()
     for spec in selected:
         destination = dataset_dir / spec.path
         reused = False
@@ -138,7 +139,7 @@ def download_kacho_dataset(
         else:
             _download_file(config, spec, destination, retries=retries)
         size, digest = _verify(destination, spec)
-        inventory[spec.path] = {
+        next_item = {
             "asset": spec.asset,
             "kind": spec.kind,
             "path": spec.path,
@@ -148,6 +149,14 @@ def download_kacho_dataset(
             "verified_at": datetime.now(UTC).isoformat(),
             "reused": reused,
         }
+        existing = inventory.get(spec.path)
+        if existing is None or any(
+            existing.get(key) != next_item[key]
+            for key in ("asset", "kind", "path", "bytes", "sha256", "source_url")
+        ):
+            inventory[spec.path] = next_item
+            changed = True
+    if changed:
         _write_manifest(manifest_path, config, inventory)
     return manifest_path
 
