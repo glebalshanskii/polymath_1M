@@ -41,7 +41,7 @@ def run_openmarket_sanity(config_path: str | Path) -> Path:
     if not pmxt_manifest_path.is_file():
         raise OpenMarketSanityError("build the complete PMXT dataset first")
     pmxt_manifest = json.loads(pmxt_manifest_path.read_text(encoding="utf-8"))
-    if pmxt_manifest.get("config_sha256") != config.config_sha256:
+    if pmxt_manifest.get("data_contract_sha256") != config.data_contract_sha256:
         raise OpenMarketSanityError("PMXT and screening config hashes differ")
 
     coverage: list[dict[str, Any]] = []
