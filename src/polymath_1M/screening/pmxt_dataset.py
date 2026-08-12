@@ -25,7 +25,7 @@ class ScreeningDatasetError(RuntimeError):
     """The PMXT screening dataset cannot satisfy the frozen data contract."""
 
 
-BOOK_CONTRACT = "causal_best_hints_assume_10_usdc_at_execution_top_v2"
+BOOK_CONTRACT = "causal_best_hints_assume_10_usdc_at_execution_top"
 
 
 def _sha256(path: Path) -> str:
@@ -269,12 +269,25 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     inventory: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=config.pmxt_workers) as executor:
-        futures = {
-            executor.submit(_build_hour, hour, rows, config, output_dir): hour
-            for hour, rows in sorted(grouped.items())
-        }
-        for future in as_completed(futures):
-            inventory.append(future.result())
+        iterator = iter(sorted(grouped.items()))
+        futures = {}
+        for _ in range(config.pmxt_workers):
+            try:
+                hour, hour_rows = next(iterator)
+            except StopIteration:
+                break
+            future = executor.submit(_build_hour, hour, hour_rows, config, output_dir)
+            futures[future] = hour
+        while futures:
+            completed = next(as_completed(futures))
+            inventory.append(completed.result())
+            del futures[completed]
+            try:
+                hour, hour_rows = next(iterator)
+            except StopIteration:
+                continue
+            future = executor.submit(_build_hour, hour, hour_rows, config, output_dir)
+            futures[future] = hour
     inventory.sort(key=lambda item: item["hour"])
     if sum(int(item["market_count"]) for item in inventory) != len(markets):
         raise ScreeningDatasetError("PMXT hourly inventory lost universe markets")
