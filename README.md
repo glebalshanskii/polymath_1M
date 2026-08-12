@@ -26,6 +26,7 @@ orders, пока не покажет net edge после fees и slippage.
 - [Executable strategy/backtest/paper-trading spec](docs/protocols/reproduction/0001_murtazin_reproduction.md)
 - [Принятые приближения](docs/adr/0001-reproduction-contract.md)
 - [Результат аудита профилей](docs/reports/murtazin_profile_audit_stage1.md)
+- [Audit публичных historical datasets](docs/reports/polymarket_historical_data_source_audit.md)
 - [Реестр источников](docs/papers/registry.md)
 
 Этап 1 завершён: реализован read-only audit, выгружена полная public
@@ -37,6 +38,13 @@ March–April 2026. Exact article claims публичным ledger не
 Этап 2 реализует production-shaped read-only collector: фиксированные Gamma
 series, exact market rules/fees, CLOB L2, Chainlink TWAP 30s/60s, Binance
 hourly reference и детерминированный raw replay.
+
+Для historical backtest не ждём собственного многомесячного архива. Primary
+source — публичный PMXT v2 CLOB event archive; компактный Kacho 5m dataset
+используется для быстрого запуска strategy engine. Pinned revisions,
+проверенная coverage и ограничения зафиксированы в
+[source audit](docs/reports/polymarket_historical_data_source_audit.md) и
+[ADR-0004](docs/adr/0004-historical-market-data.md).
 
 Запуск аудита:
 
