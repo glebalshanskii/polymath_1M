@@ -4,7 +4,7 @@
 - Статус этапа: **completed**
 - Claim verdict: **`not_reconstructable` для всех трёх accounts**
 - Config: `cfg/audits/murtazin_profiles.json`
-- Commit at collection time: `26d19796332b5fc607f725ecf35efb3a069e2147`
+- Analysis commit: `fb775a83bb0dfc3758ef503918c878ab38cba05a`
 - Runtime: Python 3.14.0, PyTorch 2.13.0+cpu, CPU, `torch.float64`
 - Local run:
   `outputs/profile_audit/20260812T163243Z_murtazin_profiles_2026_03_04/`
@@ -80,10 +80,11 @@ Sizing в MVP берётся из capacity/risk limits, а не копирует
 
 | Artifact | SHA-256 |
 |---|---|
-| `audit_summary.json` | `fac52d9a41ac0092e0c33b9b441ec4967cc8965404480366ff132cb6c30d2a33` |
+| `audit_summary.json` | `7638ee823db39bfe140740379bd1fc3efd1ce87b2eeca26f74757c252e4fb87b` |
 | `behavior_summary.json` | `da44b1bab5c3500b8f844619a41e490e4fc228664e5abf541b4154961fa70c3d` |
-| `window_comparison.csv` | `6525dffbd5f3a95e0c9a935df56ae33e17f18469741895a16ac840b64aa718bf` |
-| `audit.sqlite3` | `1808075ccafa97ed1642fb94f03d0e7c5d8dfc2e879fb323528d7470c330e4e4` |
+| `window_comparison.csv` | `d7908b44d877e9dedd8a8762878117615ca35b7d74bf8845ab2c9be44e3d333c` |
+| `audit.sqlite3` | `edc450bfd1fdf6ab8bcb29d5746b20cb324b75abcd0f2c4cadc57f9b6bf8d322` |
+| `raw_inventory.json` | `71bb37cc470d6801737aba16438e59a2e887ebe0e149ee444295a9d17e88cb50` |
 
 Run занимает 53 GB и не коммитится. SHA-256 inventory покрывает все 64,570
 raw files; из-за рестартов ранней версии collector request URL/time metadata
