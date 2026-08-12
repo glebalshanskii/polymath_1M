@@ -2,9 +2,8 @@
 
 - Обновлено: 2026-08-12
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Этап 1 завершён; Этап 2 следующий**
-- Следующий deliverable: работающий collector Gamma + CLOB L2 +
-  Chainlink RTDS
+- Текущий этап: **Этап 2 — 24-hour validation in progress**
+- Следующий deliverable: принятый 24-hour collector run и deterministic replay
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -100,7 +99,7 @@ prospective paper trading.
 
 ## Этап 2. Collector MVP
 
-Статус: **next**.
+Статус: **implemented; 24-hour acceptance pending**.
 
 ### Работы
 
@@ -117,6 +116,22 @@ prospective paper trading.
 - raw events детерминированно восстанавливают books и features;
 - market outcome и price-to-beat сверены с rules/source;
 - collector outputs ignored raw storage + committed manifest/schema.
+
+### Реализация и validation
+
+- Реализованы Gamma discovery по 12 fixed series, CLOB metadata/L2,
+  Chainlink TWAP 30s/60s, Binance hourly reference, binary raw archive,
+  reconnect/resubscribe, health summary и deterministic replay.
+- Exact current contracts: 5m = Chainlink TWAP 30s; 15m = TWAP 60s;
+  hourly = Binance USDT candle. Source выбирается из rules каждого market.
+- Первые production smokes выявили и сохранили negative evidence: широкий
+  registry и per-message multiplexing приводили к CLOB slow-consumer
+  reconnects. Hot path заменён dedicated receive loop + batch parser.
+- Канонические документы: [collector protocol](protocols/collector/0001_stage2_collector.md),
+  [ADR-0003](adr/0003-stage2-collector-contract.md),
+  [Stage 2 report](reports/murtazin_collector_stage2.md).
+- До завершения этапа остаётся пройти clean-commit 24-hour gate; короткий smoke
+  сам по себе не переводит Stage 2 в `completed`.
 
 ## Этап 3. Minimal strategy engine
 

@@ -5,6 +5,8 @@ from collections.abc import Sequence
 
 from .audit.runner import run_profile_audit
 from .audit.storage import build_raw_inventory
+from .collector.replay import replay_run
+from .collector.runner import run_collector
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -34,6 +36,30 @@ def build_parser() -> argparse.ArgumentParser:
     inventory.add_argument(
         "--run-dir", required=True, help="existing profile-audit run"
     )
+    collector = subparsers.add_parser(
+        "collector-run",
+        help="collect Gamma metadata, Polymarket CLOB L2, and RTDS reference prices",
+    )
+    collector.add_argument(
+        "--config",
+        default="cfg/collectors/stage2_polymarket.json",
+        help="path to the collector JSON config",
+    )
+    collector.add_argument(
+        "--output-root",
+        default="outputs/collector",
+        help="directory for raw market-data runs",
+    )
+    collector.add_argument(
+        "--duration-seconds",
+        type=int,
+        help="override the configured run duration (the committed config is 24 hours)",
+    )
+    replay = subparsers.add_parser(
+        "collector-replay",
+        help="rebuild all L2 books from a collector run and compare its final digest",
+    )
+    replay.add_argument("--run-dir", required=True, help="existing collector run")
     return parser
 
 
@@ -54,3 +80,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         inventory_path, summary_path = build_raw_inventory(args.run_dir)
         print(inventory_path)
         print(summary_path)
+    elif args.command == "collector-run":
+        run_dir = run_collector(
+            args.config,
+            args.output_root,
+            duration_seconds=args.duration_seconds,
+        )
+        print(run_dir)
+    elif args.command == "collector-replay":
+        print(replay_run(args.run_dir))

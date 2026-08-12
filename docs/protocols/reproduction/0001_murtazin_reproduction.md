@@ -2,7 +2,7 @@
 
 - Версия: `0.2`
 - Дата: 2026-08-12
-- Статус: **Stage 1 executed; Stage 2 implementation-ready**
+- Статус: **Stage 1 executed; Stage 2 collector implemented**
 - Source PDF SHA-256:
   `4441b4e2907c4650b2895057ad22babf834c1f746da5559cc6ab4190b1bbe866`
 - Decision: [ADR-0001](../../adr/0001-reproduction-contract.md)
@@ -95,7 +95,9 @@ contract.
 
 ### 4.1. Discovery
 
-Poll Gamma for active events/markets belonging to series such as:
+Исполняемый contract и acceptance gate вынесены в
+[Stage 2 collector protocol](../collector/0001_stage2_collector.md). Collector
+polls Gamma по фиксированным `series_id`:
 
 - `btc-up-or-down-5m`, `btc-up-or-down-15m`, `btc-up-or-down-hourly`;
 - equivalent ETH/SOL/XRP series;
@@ -110,34 +112,37 @@ For every market store:
 - tick size, minimum order size, order delay and accepting-orders status;
 - discovery/event/receive timestamps.
 
-Do not infer the trading window from `startDate` alone: current short markets may
-be published hours before the five- or fifteen-minute resolution window. Parse
-and verify the actual window from slug/title/rules.
+Trading window берётся из `event.startTime/endDate`, а не из
+`market.startDate`: short markets публикуются примерно за сутки до своего
+пяти- или пятнадцатиминутного окна. Для hourly `startTime` сейчас отсутствует,
+поэтому применяется явное `endDate - 1h` с проверкой rules/title.
 
 ### 4.2. Real-time capture
 
-For both outcome tokens subscribe to the CLOB market WebSocket and keep a local
-book from the initial snapshot plus updates. Store raw messages before derived
-snapshots.
+Для обеих outcome tokens collector подписывается на CLOB market WebSocket и
+поддерживает local book из initial snapshot и updates. Raw frame сохраняется до
+parsing в [raw-frame-v1](../collector/raw_frame_v1.md); book state — CPU
+`torch.float64` tensor на price grid `0.0001`.
 
-For the exact source named by market rules subscribe to RTDS. If rules use
-Chainlink TWAP, Binance price is allowed only as a feature/diagnostic, never as
-the settlement truth.
+Для exact source из rules collector подписывается на RTDS. Текущий mapping:
+5m → Chainlink TWAP 30s, 15m → Chainlink TWAP 60s, hourly → Binance USDT.
+Boundary принимается только при точном совпадении source timestamp с началом
+market; nearest/interpolation запрещены.
 
-Every record has:
+Каждый raw record имеет:
 
 ```text
-event_timestamp
-receive_timestamp
-source
-market_id / token_id / symbol
-sequence_or_hash
-payload
-collector_version
+local_sequence
+receive_timestamp_ns
+receive_monotonic_ns
+connection_id
+direction
+exact_websocket_payload
 ```
 
-Collector health fails closed on sequence gaps, stale books, clock drift,
-unknown tick changes or unresolved market/token mapping.
+Event timestamp, source IDs и CLOB hash остаются внутри exact payload и
+извлекаются replay. Collector fails closed на raw sequence gap, stale feed,
+parse/orphan update, unsupported source или unresolved market/token mapping.
 
 ## 5. Features and model
 
