@@ -202,6 +202,8 @@ class CollectorStorage:
     ) -> None:
         self.config = config
         self.started_at = (started_at or datetime.now(UTC)).astimezone(UTC)
+        self.source_commit = _git_commit()
+        self.source_worktree_dirty = _git_dirty()
         timestamp = self.started_at.strftime("%Y%m%dT%H%M%SZ")
         self.run_dir = Path(output_root) / f"{timestamp}_{config.collector_id}"
         self.run_dir.mkdir(parents=True, exist_ok=False)
@@ -310,8 +312,8 @@ class CollectorStorage:
             "started_at": self.started_at.isoformat(),
             "ended_at": ended_at.isoformat(),
             "runtime_seconds": (ended_at - self.started_at).total_seconds(),
-            "source_commit": _git_commit(),
-            "source_worktree_dirty": _git_dirty(),
+            "source_commit": self.source_commit,
+            "source_worktree_dirty": self.source_worktree_dirty,
             "runtime": {
                 "python": sys.version,
                 "platform": platform.platform(),

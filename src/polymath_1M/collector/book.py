@@ -11,6 +11,7 @@ import torch
 
 PRICE_SCALE = 10_000
 PRICE_LEVELS = PRICE_SCALE + 1
+ALLOWED_TICK_SIZES = {"0.1", "0.01", "0.001", "0.0001"}
 
 
 class BookDataError(ValueError):
@@ -215,6 +216,7 @@ class OrderBookStore:
         self.unknown_events = 0
         self.crossed_states = 0
         self.resolutions: dict[str, dict[str, Any]] = {}
+        self.tick_sizes: dict[str, str] = {}
 
     def apply_raw(self, raw: str) -> list[tuple[str, int | None]]:
         observed: list[tuple[str, int | None]] = []
@@ -230,9 +232,10 @@ class OrderBookStore:
                 )
                 if condition_id:
                     self.resolutions[condition_id] = payload
+            elif event_type == "tick_size_change":
+                self._tick_size_change(payload)
             elif event_type not in {
                 "last_trade_price",
-                "tick_size_change",
                 "best_bid_ask",
                 "new_market",
             }:
@@ -249,7 +252,25 @@ class OrderBookStore:
             raise BookDataError("book snapshot bids/asks are not arrays")
         book = self.books.setdefault(asset_id, AssetBook.empty())
         book.apply_snapshot(bids, asks, payload.get("hash"))
+        tick_size = _field(payload, "tick_size", "tickSize")
+        if tick_size is not None:
+            self._store_tick_size(asset_id, tick_size)
         self._check_crossed(book)
+
+    def _tick_size_change(self, payload: dict[str, Any]) -> None:
+        asset_id = str(_field(payload, "asset_id", "tokenId") or "")
+        if not asset_id:
+            raise BookDataError("tick_size_change has no asset/token id")
+        tick_size = _field(payload, "new_tick_size", "newTickSize")
+        if tick_size is None:
+            raise BookDataError("tick_size_change has no new tick size")
+        self._store_tick_size(asset_id, tick_size)
+
+    def _store_tick_size(self, asset_id: str, value: Any) -> None:
+        normalized = format(Decimal(str(value)).normalize(), "f")
+        if normalized not in ALLOWED_TICK_SIZES:
+            raise BookDataError(f"unsupported tick size: {value!r}")
+        self.tick_sizes[asset_id] = normalized
 
     def _changes(self, payload: dict[str, Any]) -> None:
         changes = _field(payload, "price_changes", "priceChanges")
@@ -329,6 +350,7 @@ class OrderBookStore:
             ),
             "unknown_events": self.unknown_events,
             "crossed_states": self.crossed_states,
+            "tick_sizes": dict(sorted(self.tick_sizes.items())),
             "global_digest": global_digest.hexdigest(),
             "assets": assets,
         }

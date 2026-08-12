@@ -237,7 +237,7 @@ class CollectorRuntime:
                         },
                         connection_id,
                     )
-                    await self._clob_session(websocket, connection_id, registry)
+                    await self._clob_session(websocket, connection_id, registry, shard)
             except Exception as exc:
                 if self.stop.is_set():
                     return
@@ -269,9 +269,10 @@ class CollectorRuntime:
         websocket: Any,
         connection_id: str,
         registry: SubscriptionRegistry,
+        shard: str,
     ) -> None:
         receiver = asyncio.create_task(
-            self._clob_receive_loop(websocket, connection_id)
+            self._clob_receive_loop(websocket, connection_id, shard)
         )
         updater = asyncio.create_task(
             self._clob_update_loop(websocket, connection_id, registry)
@@ -301,10 +302,12 @@ class CollectorRuntime:
                 receiver, updater, heartbeat, stopper, return_exceptions=True
             )
 
-    async def _clob_receive_loop(self, websocket: Any, connection_id: str) -> None:
+    async def _clob_receive_loop(
+        self, websocket: Any, connection_id: str, shard: str
+    ) -> None:
         received = 0
         async for raw in websocket:
-            await self._handle_clob(raw, connection_id)
+            await self._handle_clob(raw, connection_id, shard)
             received += 1
             if received % 64 == 0:
                 await asyncio.sleep(0)
@@ -330,7 +333,9 @@ class CollectorRuntime:
                     connection_id,
                 )
 
-    async def _handle_clob(self, raw_value: str | bytes, connection_id: str) -> None:
+    async def _handle_clob(
+        self, raw_value: str | bytes, connection_id: str, shard: str
+    ) -> None:
         raw = raw_value.decode("utf-8") if isinstance(raw_value, bytes) else raw_value
         wall_ns, monotonic_ns = wall_and_monotonic_ns()
         self.storage.clob_writer.write(
@@ -339,7 +344,7 @@ class CollectorRuntime:
             receive_monotonic_ns=monotonic_ns,
             connection_id=connection_id,
         )
-        self.health.clob.received(len(raw.encode()), wall_ns)
+        self.health.clob.received(len(raw.encode()), wall_ns, connection_key=shard)
         if raw.strip() in {"PONG", ""}:
             self.health.clob.observed_event("heartbeat", None, wall_ns)
             return
@@ -486,7 +491,9 @@ class CollectorRuntime:
             receive_monotonic_ns=monotonic_ns,
             connection_id=connection_id,
         )
-        self.health.rtds.received(len(raw_text.encode()), wall_ns)
+        self.health.rtds.received(
+            len(raw_text.encode()), wall_ns, connection_key="rtds"
+        )
         if raw_text.strip() in {"PONG", ""}:
             self.health.rtds.observed_event("heartbeat", None, wall_ns)
             return

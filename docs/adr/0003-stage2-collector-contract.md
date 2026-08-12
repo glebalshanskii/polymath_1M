@@ -36,6 +36,8 @@
    подписываем обе outcome shares. Raw frame
    сохраняется до parsing вместе с wall-clock и monotonic receive timestamps.
    L2 восстанавливается на CPU в `torch.float64` tensor grid с шагом `0.0001`.
+   Health и staleness считаются отдельно для каждого asset shard; CLOB tick
+   changes валидируются по официальному whitelist.
 6. В RTDS подписываем Chainlink TWAP 30s/60s и Binance prices. Reference
    boundary считается exact только при совпадении source topic, symbol и
    source timestamp с началом market. Nearest tick не подставляется.

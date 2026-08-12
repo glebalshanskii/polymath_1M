@@ -17,6 +17,9 @@ class StreamHealth:
     max_event_lag_ms: float = 0.0
     event_counts: Counter[str] = field(default_factory=Counter)
     connection_counts: Counter[str] = field(default_factory=Counter)
+    connection_messages: Counter[str] = field(default_factory=Counter)
+    connection_last_receive_ns: dict[str, int] = field(default_factory=dict)
+    connection_max_gap_ms: dict[str, float] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
     def connected(self, connection_key: str = "default") -> None:
@@ -30,6 +33,7 @@ class StreamHealth:
         raw_bytes: int,
         receive_timestamp_ns: int,
         *,
+        connection_key: str = "default",
         event_type: str | None = None,
         event_timestamp_ms: int | None = None,
     ) -> None:
@@ -39,6 +43,15 @@ class StreamHealth:
         self.last_receive_timestamp_ns = receive_timestamp_ns
         self.messages += 1
         self.bytes += raw_bytes
+        previous_receive = self.connection_last_receive_ns.get(connection_key)
+        if previous_receive is not None:
+            connection_gap_ms = (receive_timestamp_ns - previous_receive) / 1_000_000
+            self.connection_max_gap_ms[connection_key] = max(
+                self.connection_max_gap_ms.get(connection_key, 0.0),
+                connection_gap_ms,
+            )
+        self.connection_last_receive_ns[connection_key] = receive_timestamp_ns
+        self.connection_messages[connection_key] += 1
         if event_type:
             self.event_counts[event_type] += 1
         if event_timestamp_ms is not None:
@@ -63,6 +76,13 @@ class StreamHealth:
         payload = asdict(self)
         payload["event_counts"] = dict(sorted(self.event_counts.items()))
         payload["connection_counts"] = dict(sorted(self.connection_counts.items()))
+        payload["connection_messages"] = dict(sorted(self.connection_messages.items()))
+        payload["connection_last_receive_ns"] = dict(
+            sorted(self.connection_last_receive_ns.items())
+        )
+        payload["connection_max_gap_ms"] = dict(
+            sorted(self.connection_max_gap_ms.items())
+        )
         return payload
 
 
@@ -85,9 +105,19 @@ class CollectorHealth:
             stale[name] = (
                 last is None or (now_ns - last) / 1_000_000_000 > stale_after_seconds
             )
+        stale_connections = {
+            name: {
+                connection: (now_ns - last) / 1_000_000_000 > stale_after_seconds
+                for connection, last in sorted(
+                    stream.connection_last_receive_ns.items()
+                )
+            }
+            for name, stream in (("clob", self.clob), ("rtds", self.rtds))
+        }
         return {
             "streams": streams,
             "stale_at_end": stale,
+            "stale_connections_at_end": stale_connections,
             "discovery_runs": self.discovery_runs,
             "discovery_errors": self.discovery_errors,
             "book_parse_errors": self.book_parse_errors,

@@ -48,6 +48,7 @@ stdlib async WebSocket client; business parsing, storage и book replay напи
 | `20260812T195351Z_stage2_polymarket_updown` | replay `match`, correctness pass, но 2 reconnects на одном socket | один CLOB socket не выдерживает aggregate burst 4 assets |
 | `20260812T200131Z_stage2_polymarket_updown` | 245s, replay `match`, 32/32 books, reconnects 0 | четыре asset-sharded CLOB sockets устранили slow consumer |
 | `20260812T200700Z_stage2_polymarket_updown` | 335s, replay `match`, 32/32 books, reconnects 0, exact boundaries 4/4 eligible starts | final executable path стабилен; settlement в течение 60–95s ещё `closed=false` |
+| `20260812T201453Z_stage2_polymarket_updown` | 98s regression, replay `match`, 40/40 books, reconnects/errors 0 | disabling global custom events сохранило L2 и уменьшило лишний traffic |
 
 Первые два run являются информативными отрицательными результатами, а не
 acceptance evidence. Heavy artifacts лежат в ignored `outputs/collector/`.

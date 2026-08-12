@@ -139,6 +139,30 @@ class CollectorBookTest(unittest.TestCase):
         with self.assertRaisesRegex(BookDataError, "more than four"):
             OrderBookStore().apply_raw(raw)
 
+    def test_tracks_allowed_tick_change_and_rejects_unknown_tick(self) -> None:
+        store = OrderBookStore()
+        store.apply_raw(
+            json.dumps(
+                {
+                    "event_type": "tick_size_change",
+                    "asset_id": "token",
+                    "new_tick_size": "0.001",
+                }
+            )
+        )
+        self.assertEqual(store.summary()["tick_sizes"], {"token": "0.001"})
+
+        with self.assertRaisesRegex(BookDataError, "unsupported tick"):
+            store.apply_raw(
+                json.dumps(
+                    {
+                        "event_type": "tick_size_change",
+                        "asset_id": "token",
+                        "new_tick_size": "0.005",
+                    }
+                )
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -48,6 +48,8 @@ Price поддерживается на integer grid `round(price × 10,000)` б
 Size хранится как CPU `torch.float64`.
 Если одно logical изменение разбито на несколько frames, server
 `best_bid/best_ask` hints немедленно очищают stale top levels.
+`tick_size_change` принимается только для CLOB whitelist
+`0.1/0.01/0.001/0.0001`; неизвестный шаг делает run invalid.
 
 ### Reference
 
@@ -110,7 +112,8 @@ Gate проходит только одновременно при:
 
 - runtime ≥ 86,400 seconds и `manifest.status == completed`;
 - discovery охватил все 12 series без unresolved mapping/source errors;
-- CLOB и RTDS имеют messages, `parse_errors == 0`, `stale_at_end == false`;
+- CLOB и RTDS имеют messages, `parse_errors == 0`, aggregate и per-shard
+  `stale_at_end == false`;
 - каждое subscribed token имеет initial snapshot; orphan update count равен 0;
 - local raw sequences обоих streams непрерывны, каждый raw file size/hash
   совпадает manifest;
