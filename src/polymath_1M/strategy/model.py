@@ -87,6 +87,17 @@ def calculate_platform_fee(
     return (torch.round(raw_per_level * scale) / scale).sum(dim=2)
 
 
+def _fee_rate_by_market(
+    fee_rate: float | torch.Tensor, reference: torch.Tensor
+) -> torch.Tensor:
+    rates = torch.as_tensor(fee_rate, dtype=reference.dtype, device=reference.device)
+    if rates.ndim == 0:
+        return rates.expand(reference.shape[0])
+    if rates.ndim != 1 or rates.shape[0] != reference.shape[0]:
+        raise ValueError("fee rate must be scalar or have shape [market]")
+    return rates
+
+
 def fit_lookup_model(
     train: DecisionBatch,
     edges: torch.Tensor,
@@ -179,12 +190,14 @@ def evaluate_batch(
         side_cost / side_shares,
         torch.full_like(side_shares, float("nan")),
     )
-    side_fee_per_share = torch.where(
-        side_shares > 0,
-        side_fee / side_shares,
-        torch.full_like(side_shares, float("nan")),
+    decision_fee_per_share = (
+        _fee_rate_by_market(platform_fee_rate, batch.asks)[:, None]
+        * batch.asks
+        * (1 - batch.asks)
     )
-    side_edges = probabilities - side_vwap - side_fee_per_share - extra_cost_per_share
+    side_edges = (
+        probabilities - batch.asks - decision_fee_per_share - extra_cost_per_share
+    )
     comparable_edges = torch.nan_to_num(side_edges, nan=-torch.inf)
     if forced_side is None:
         side = torch.argmax(comparable_edges, dim=1)
@@ -205,10 +218,7 @@ def evaluate_batch(
     chosen_shares = side_shares.gather(1, gather).squeeze(1)
     chosen_cost = side_cost.gather(1, gather).squeeze(1)
     chosen_fee = side_fee.gather(1, gather).squeeze(1)
-    chosen_fee_per_share = side_fee_per_share.gather(1, gather).squeeze(1)
-    net_edge = (
-        chosen_probability - fill_vwap - chosen_fee_per_share - extra_cost_per_share
-    )
+    net_edge = side_edges.gather(1, gather).squeeze(1)
     support = model.support[states]
     persistence = model.persistence[states]
 
