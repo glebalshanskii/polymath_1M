@@ -34,13 +34,27 @@ March–April 2026. Exact article claims публичным ledger не
 воспроизводятся, поэтому результат — `not_reconstructable`, а не
 необоснованное подтверждение или опровержение статьи.
 
-Запуск smoke/нового аудита:
+Этап 2 реализует production-shaped read-only collector: фиксированные Gamma
+series, exact market rules/fees, CLOB L2, Chainlink TWAP 30s/60s, Binance
+hourly reference и детерминированный raw replay.
+
+Запуск аудита:
 
 ```bash
 uv sync --locked
 uv run polymath_1M profile-audit --config cfg/audits/murtazin_profiles.json
 ```
 
-Следующий этап — collector market metadata, CLOB L2 и Chainlink RTDS.
-Без собственной L2 истории historical backtest будет только грубым
-фильтром, а не доказательством доходности.
+Запуск 24-hour collector и replay:
+
+```bash
+uv run polymath_1M collector-run \
+  --config cfg/collectors/stage2_polymarket.json \
+  --output-root outputs/collector
+uv run polymath_1M collector-replay --run-dir <run-dir>
+```
+
+Короткий development smoke запускается тем же command с
+`--duration-seconds 300`. Raw capture остаётся в ignored `outputs/collector/`;
+binary schema и acceptance gate описаны в
+[collector protocol](docs/protocols/collector/0001_stage2_collector.md).
