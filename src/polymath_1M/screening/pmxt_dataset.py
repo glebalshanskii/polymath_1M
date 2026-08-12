@@ -25,6 +25,9 @@ class ScreeningDatasetError(RuntimeError):
     """The PMXT screening dataset cannot satisfy the frozen data contract."""
 
 
+BOOK_CONTRACT = "causal_best_hints_assume_10_usdc_at_execution_top_v2"
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -70,13 +73,11 @@ def _valid_top_row(
     signal_down = snapshots[("signal", "Down")]
     execution_up = snapshots[("execution", "Up")]
     execution_down = snapshots[("execution", "Down")]
-    values = [
-        float(row[key])
+    if any(
+        not 0 <= float(row["best_bid"]) <= float(row["best_ask"]) <= 1
         for row in required
-        for key in ("best_bid", "best_ask")
         if row is not None
-    ]
-    if any(not 0 < value < 1 for value in values):
+    ):
         return _invalid_row(market, "invalid_causal_top")
     assumed_notional = 10.0
     execution_ask_up = float(execution_up["best_ask"])
@@ -188,6 +189,7 @@ def _build_hour(
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         if (
             metadata.get("data_contract_sha256") == config.data_contract_sha256
+            and metadata.get("book_contract") == BOOK_CONTRACT
             and metadata.get("parquet_sha256") == _sha256(output_path)
             and metadata.get("market_count") == len(markets)
         ):
@@ -229,7 +231,7 @@ def _build_hour(
         "pmxt_config_sha256": load_pmxt_archive_config(
             config.pmxt_config
         ).config_sha256,
-        "book_contract": "causal_best_hints_assume_10_usdc_at_execution_top",
+        "book_contract": BOOK_CONTRACT,
         "source_url": source_url,
         "retrieved_at": datetime.now(UTC).isoformat(),
         "source_event_rows": table.num_rows,
