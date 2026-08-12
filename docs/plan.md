@@ -1,9 +1,11 @@
 # Практический план polymath_1M
 
-- Обновлено: 2026-08-12
+- Обновлено: 2026-08-13
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Этап 2 — 24-hour validation in progress**
-- Следующий deliverable: принятый 24-hour collector run и deterministic replay
+- Текущий этап: **Этап 3 — historical adapters и minimal strategy engine;
+  24-hour Stage 2 validation идёт параллельно**
+- Следующий deliverable: pinned Kacho 5m adapter, tiny end-to-end backtest и
+  PMXT compatibility smoke
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -31,6 +33,8 @@ prospective paper trading.
   30-day screenshot.
 - Literal `max(P[current_state])` не оценивает terminal payout; для
   ордера нужна terminal-probability model.
+- Исторический full-L2 не нужно накапливать самостоятельно: PMXT v2 публично
+  раздаёт CLOB event stream с 2026-04-13, а Kacho — компактный 5m pilot.
 - 99.5–99.8¢ level locks, Kelly 0.71 и заявленный 55% diversification не
   переносятся в MVP.
 
@@ -135,16 +139,20 @@ prospective paper trading.
 
 ## Этап 3. Minimal strategy engine
 
-Статус: **pending collector schema**.
+Статус: **ready after dataset-source audit; 24-hour live gate идёт параллельно**.
 
 ### Работы
 
-1. PyTorch state binning и smoothed terminal win-rate lookup.
-2. Literal one-step transition/persistence feature как baseline/filter.
-3. Ask-VWAP, market fee и net-edge calculation.
-4. Один decision engine для historical и live adapters.
-5. FAK shadow execution, fixed size, one entry/market, hold to resolution.
-6. Configs:
+1. Pinned downloader/manifest и adapter для Kacho 5m revision
+   `42d917dc8e3205dde8ac909792af0cce2d715c9f`.
+2. PMXT v2 remote predicate adapter по Gamma `condition_id`, без скачивания
+   полного архива; cross-source check на периоде overlap.
+3. PyTorch state binning и smoothed terminal win-rate lookup.
+4. Literal one-step transition/persistence feature как baseline/filter.
+5. Ask-VWAP, market fee и net-edge calculation.
+6. Один decision engine для historical и live adapters.
+7. FAK shadow execution, fixed size, one entry/market, hold to resolution.
+8. Configs:
    - `favorite_hourly`;
    - `directional_mid_15m` и `_1h`;
    - `multi_asset_short_5m` и `_15m`.
@@ -163,12 +171,16 @@ prospective paper trading.
 
 ### Работы
 
-1. Собрать Gamma universe/outcomes и CLOB `prices-history`.
-2. Chronological market split 60/20/20.
-3. Train lookup/logistic model; выбрать config только на validation.
-4. Один final test для выбранного config.
-5. Стоимостные scenarios: exact fee + 0.5¢ / 1¢ / 2¢ на share.
-6. Сравнить range-only, literal Markov и terminal model.
+1. Зафиксировать Gamma universe/rules/outcomes для 12 recurring series.
+2. Извлечь из PMXT v2 только target conditions; `prices-history` использовать
+   лишь как coarse sanity check, не как execution evidence.
+3. Chronological market split 60/20/20.
+4. Train lookup/logistic model; выбрать config только на validation.
+5. Один final test для выбранного config.
+6. Стоимостные scenarios: historical fee fields + 0.5¢ / 1¢ / 2¢ на share.
+7. Сравнить range-only, literal Markov и terminal model.
+8. Повторить BTC 15m sanity на independent OpenMarket, не смешивая его с
+   primary PMXT metrics.
 
 ### Gate to paper selection
 
@@ -226,4 +238,6 @@ drawdown, а не по sizes аккаунтов из статьи.
 
 После каждого этапа обновлять этот план, relevant ADR/spec и report.
 Heavy raw books/activity и credentials не коммитятся; в git остаются schemas,
-configs, manifests, code, tests и summary reports.
+configs, manifests, code, tests и summary reports. Выбор historical sources и
+их ограничения: [source audit](reports/polymarket_historical_data_source_audit.md)
+и [ADR-0004](adr/0004-historical-market-data.md).
