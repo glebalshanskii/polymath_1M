@@ -1,8 +1,9 @@
 # Этап 3: historical adapters и minimal strategy engine
 
 - Дата run: 2026-08-13
-- Code commit: `8c6bab5ba35a729b0889b8013e944e66212e8068`
-- Device/dtype: CPU, `torch.float64`
+- Code commit: `7aeed43c95288c44a0d77c2cc736d898d3614d9f`
+- Device/dtype: NVIDIA RTX 3080 Ti Laptop GPU, `torch.float64`
+- Runtime: `torch 2.13.0+cu130`, CUDA 13.0, compute capability 8.6
 - Seed: `20260813`
 - Решение: [ADR-0005](../adr/0005-stage3-strategy-engine.md)
 
@@ -30,8 +31,8 @@ BUY FAK проходит по всем доступным ask levels до fixed 
 Kacho smoke config:
 `cfg/experiments/stage3_kacho_5m_tiny.json`. Выбраны первые 1,200 labeled BTC
 5m markets, chronological split 60/20/20, decision за 60 секунд до end,
-transition horizon 60 секунд. Dataset manifest SHA-256:
-`987a3fb3dcbba616f2333ba3fa6276080f306eae6eccdf42ea307cf96daf9c3c`.
+transition horizon 60 секунд. Canonical selected-file dataset manifest
+SHA-256: `7489ae40f7eefa0140bffb44738f04cd43bf6e31a498bd0563d39f60450a0102`.
 
 Smoke strategy специально permissive и имеет ID
 `stage3_engine_smoke_5m_not_candidate`. Она нужна, чтобы пройти реальные
@@ -39,7 +40,7 @@ order/fill/settlement branches. Пять article-derived configs сохране�
 отдельно и на этих 1,200 markets не выбирались и не оценивались.
 
 Clean run artifacts:
-`outputs/backtests/20260812T231639Z_stage3_kacho_btc_5m_tiny/`.
+`outputs/backtests/20260812T232453Z_stage3_kacho_btc_5m_tiny/`.
 Detailed decisions и dataset не коммитятся.
 
 ## Results
@@ -80,10 +81,11 @@ Artifact:
 
 ## Tests and invariants
 
-- 31 unit/integration tests passed;
+- 32 unit/integration tests passed;
 - official fee example: 100 shares at 0.50 and rate 0.07 = 1.75 USDC;
 - analytical two-level FAK shares/cost/fee/PnL oracle passed;
 - worst-price limit исключает более дорогие levels и оставляет partial fill;
+- CPU/CUDA decisions и PnL совпали с tolerance `1e-12`;
 - изменение future settlement меняет PnL, но не side/fill/net edge;
 - Kacho exact snapshot join and inferred-label policy passed;
 - PMXT receive-time cutoff, snapshot initialization and L2 update passed;

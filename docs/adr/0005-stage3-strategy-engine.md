@@ -45,6 +45,9 @@ receive time, но hourly partitions отсортированы по market/asse
    path и не участвует в выборе стратегии.
 8. Kacho inferred labels разрешены только с policy
    `kacho_inferred_development_only`. Confirmatory claims на них запрещены.
+9. Numerical dependency — official PyTorch CUDA 13.0 wheel. Reference device
+   RTX 3080 Ti (compute capability 8.6); CPU path сохраняется для tests и
+   малых workloads, но Stage 3/4 experiment configs используют CUDA.
 
 ## Следствия
 

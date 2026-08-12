@@ -46,6 +46,10 @@ vectorized full-L2 FAK walk, taker fees и settlement PnL реализованы
 стратегией-кандидатом: его test result отрицательный. Детали — в
 [Stage 3 report](docs/reports/murtazin_strategy_engine_stage3.md).
 
+PyTorch устанавливается из официального CUDA 13.0 index. На reference host
+проверены `torch 2.13.0+cu130` и RTX 3080 Ti; numerical tests сохраняют CPU
+path, но canonical Stage 3/4 configs используют `device: cuda`.
+
 Для historical backtest не ждём собственного многомесячного архива. Primary
 source — публичный PMXT v2 CLOB event archive; компактный Kacho 5m dataset
 используется для быстрого запуска strategy engine. Pinned revisions,

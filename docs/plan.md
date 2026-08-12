@@ -169,11 +169,13 @@ prospective paper trading.
 - PyTorch engine реализует train-only terminal lookup, one-step persistence,
   vectorized ask walk, partial FAK fill, current Polymarket taker fee proxy,
   fixed size, one entry/market и hold to resolution.
+- Dependency переведена с CPU wheel на official `torch 2.13.0+cu130`;
+  canonical run выполнен на RTX 3080 Ti, CPU/CUDA parity test прошёл.
 - Технический smoke: 1,200 BTC 5m markets, chronological 60/20/20; test 170
   fills, net PnL `-824.07 USDC`. Это отрицательный engineering smoke с
   permissive config, а не оценка пяти candidate configs.
 - Future settlement mutation не меняет side/fill/edge; analytical fee/book/PnL
-  oracle, worst-price guard, adapter tests и весь suite из 31 tests проходят.
+  oracle, worst-price guard, adapter tests и весь suite из 32 tests проходят.
 - Два одинаковых запуска дали одинаковые SHA-256 для effective config,
   dataset manifest, model, decisions и summary.
 
