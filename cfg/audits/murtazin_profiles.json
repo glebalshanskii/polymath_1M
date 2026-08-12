@@ -1,0 +1,38 @@
+{
+  "audit_id": "murtazin_profiles_2026_03_04",
+  "period_start": "2026-03-01T00:00:00Z",
+  "period_end": "2026-04-30T23:59:59Z",
+  "window_days": 30,
+  "pnl_tolerance_usdc": 1.0,
+  "biggest_win_tolerance_usdc": 1.0,
+  "fetch_trades": true,
+  "fetch_closed_positions": false,
+  "fetch_market_metadata": false,
+  "accounts": [
+    {
+      "id": "bonereaper",
+      "source_address": "0xeebde7a0e019a63e6b476eb425505b7b3e6eba30",
+      "expected_name": "Bonereaper",
+      "claimed_pnl_usdc": 418155.0,
+      "claimed_predictions": 12866,
+      "claimed_biggest_win_usdc": 6036.0
+    },
+    {
+      "id": "e1_linked",
+      "source_address": "0xe1d6b51521bd4365769199f392f9818661bd907c",
+      "expected_name": "0xe1D6b514...",
+      "claimed_pnl_usdc": 460394.0,
+      "claimed_predictions": 18915,
+      "claimed_biggest_win_usdc": 42200.0
+    },
+    {
+      "id": "b27_linked",
+      "source_address": "0xb27bc932bf8110d8f78e55da7d5f0497a18b5b82",
+      "expected_name": "0xB27BC932...",
+      "claimed_pnl_usdc": 453271.0,
+      "claimed_predictions": 16280,
+      "claimed_biggest_win_usdc": 18500.0,
+      "fetch_trade_crosscheck": false
+    }
+  ]
+}

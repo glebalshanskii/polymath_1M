@@ -8,6 +8,7 @@
   [план](../plan.md),
   [executable spec](../protocols/reproduction/0001_murtazin_reproduction.md),
   [ADR](../adr/0001-reproduction-contract.md),
+  [Stage 1 audit](murtazin_profile_audit_stage1.md),
   [реестр](../papers/registry.md)
 
 ## Короткий ответ
@@ -99,38 +100,42 @@ identity chain нужно проверить по API/on-chain history до об
 [profile search](https://docs.polymarket.com/api-reference/search/search-markets-events-and-profiles)
 и [leaderboard API](https://docs.polymarket.com/api-reference/core/get-trader-leaderboard-rankings).
 
-Текущий identity result:
+Stage 1 identity result:
 
 - Bonereaper: profile identity найдена;
 - `0xe1…`: linked profile найден, article label с высокой вероятностью
   содержит typo;
 - `0xB27…`: trading history на linked address найдена, но Gamma proxy mapping
   пока не разрешён;
-- 30-day PnL/count/biggest-win: ещё не проверены, нужен ledger audit.
+- 30-day PnL/count/biggest-win: проверены во всех 32 UTC windows; joint
+  match не найден, результат `not_reconstructable` из-за неполного public
+  historical fee/inventory contract. См.
+  [отчёт Stage 1](murtazin_profile_audit_stage1.md).
 
-### 2.3. Как сверяем 30-day claims
+### 2.3. Как сверили 30-day claims
 
 Статья говорит лишь `March–April 2026` и `30 days`, но не даёт exact
-UTC boundaries. Поэтому мы не выбираем одно удобное окно. Аудит:
+UTC boundaries. Поэтому мы не выбирали одно удобное окно. Выполненный аудит:
 
-1. Выгружает все `activity` и `trades` за March–April 2026 для exact linked
-   address. Если pagination достигает API cap, interval делится по
-   UTC days; rows deduplicate по transaction hash и fill fields.
+1. Выгружает все `activity` за March–April 2026 для exact linked address.
+   `/trades` служит independent cross-check только там, где его pagination
+   завершён. Если pagination достигает API cap, interval делится по UTC days;
+   exact duplicate public rows удаляются по hash canonical raw JSON.
 2. Отдельно сохраняет `TRADE`, `REDEEM`, `SPLIT`, `MERGE`, `REWARD` и
    `MAKER_REBATE`. Rewards/rebates не скрываются в trading alpha.
-3. Присоединяет market metadata/outcome по `conditionId`.
-4. Считает cash-flow ledger: buys, sells, settlement/redemption, fees,
-   rebates и открытые positions. Data API сверяется с Polygon
-   `OrderFilled`/CTF/token events, если fee или maker/taker semantics неоднозначны.
-5. Для каждого contiguous 30-day window внутри March–April считает:
-   realized PnL, unrealized PnL на end snapshot, unique markets, fills,
-   closed positions и biggest position win.
-6. Проверяет все разумные interpretations слова `Predictions`:
-   unique `conditionId`, positions, fills и resolved positions.
-7. Claim считается confirmed только если **одно** window и **одна**
+3. Строит resolved-market cash flow по `conditionId`; rewards/rebates и
+   boundary-sensitive net cash flow публикуются отдельно.
+4. Для каждого из 32 contiguous 30-day UTC windows считает public PnL
+   approximations, unique markets, unique token/outcome positions, trade
+   activity rows, resolved markets и biggest resolved-market cash-flow win.
+5. Claim считается confirmed только если **одно** window и **одна**
    последовательная accounting convention одновременно воспроизводят
    PnL, count и biggest win. Отдельное совпадение одной цифры не
    достаточно.
+6. Ни один joint match не найден. Historical fee/boundary inventory и exact UI
+   biggest-win convention не восстанавливаются public endpoints, поэтому
+   итоговый статус `not_reconstructable`. Polygon reconciliation остаётся
+   отдельной дорогой проверкой, а не условием перехода к collector стратегии.
 
 Нужные endpoints: [user activity](https://docs.polymarket.com/api-reference/core/get-user-activity),
 [public trades](https://docs.polymarket.com/api-reference/core/get-trades-for-a-user-or-markets),

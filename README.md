@@ -25,9 +25,22 @@ orders, пока не покажет net edge после fees и slippage.
 - [Практический план](docs/plan.md)
 - [Executable strategy/backtest/paper-trading spec](docs/protocols/reproduction/0001_murtazin_reproduction.md)
 - [Принятые приближения](docs/adr/0001-reproduction-contract.md)
+- [Результат аудита профилей](docs/reports/murtazin_profile_audit_stage1.md)
 - [Реестр источников](docs/papers/registry.md)
 
-Следующий шаг: написать read-only profile audit и одновременно
-запустить collector для market metadata, CLOB L2 и Chainlink RTDS. Без
-собственной L2 истории historical backtest будет только грубым
+Этап 1 завершён: реализован read-only audit, выгружена полная public
+activity трёх linked addresses и проверены все 30-day UTC windows в
+March–April 2026. Exact article claims публичным ledger не
+воспроизводятся, поэтому результат — `not_reconstructable`, а не
+необоснованное подтверждение или опровержение статьи.
+
+Запуск smoke/нового аудита:
+
+```bash
+uv sync --locked
+uv run polymath_1M profile-audit --config cfg/audits/murtazin_profiles.json
+```
+
+Следующий этап — collector market metadata, CLOB L2 и Chainlink RTDS.
+Без собственной L2 истории historical backtest будет только грубым
 фильтром, а не доказательством доходности.

@@ -2,7 +2,7 @@
 
 - Версия: `0.2`
 - Дата: 2026-08-12
-- Статус: **implementation-ready after API smoke audit**
+- Статус: **Stage 1 executed; Stage 2 implementation-ready**
 - Source PDF SHA-256:
   `4441b4e2907c4650b2895057ad22babf834c1f746da5559cc6ab4190b1bbe866`
 - Decision: [ADR-0001](../../adr/0001-reproduction-contract.md)
@@ -52,35 +52,44 @@ claimed_window_days: 30
    address with a returned proxy without preserving the mapping.
 2. Fetch `/activity` in bounded UTC chunks with all activity types. Recursively
    split a chunk if it reaches pagination limits.
-3. Fetch `/trades?takerOnly=false`, open/closed positions, `/traded`, leaderboard
-   and accounting snapshot as independent cross-checks.
-4. Join `conditionId` to Gamma market/rules/outcome.
-5. Dedupe fills by transaction hash plus token, side, price and size.
-6. Build inventory/cash-flow ledger. Report trading PnL, rewards/rebates and
-   unrealized positions separately.
-7. If public rows do not expose enough maker/taker/fee information, reconcile
-   the affected transaction with Polygon Exchange/CTF events.
+3. Fetch `/trades?takerOnly=false` as an independent cross-check when the
+   endpoint can be completed. Partial endpoint rows are diagnostic only and
+   must carry `complete=false`.
+4. Build a local SQLite ledger keyed by account and canonical raw-row hash.
+5. Dedupe exact public rows; do not dedupe different fills in the same
+   transaction merely because transaction hash matches.
+6. Build resolved-market cash flow from `TRADE`, `SPLIT`, `REDEEM` and
+   `MERGE`; report rewards/rebates and boundary-sensitive net cash flow
+   separately.
+7. If public rows do not expose enough inventory/maker/taker/fee information,
+   classify exact PnL and biggest-win claims `not_reconstructable`. Polygon
+   Exchange/CTF reconstruction is an optional follow-up for exact screenshot
+   accounting and does not block the independent strategy collector.
 8. Enumerate 30-day UTC windows within the article's March–April hint. For each
-   window report candidate definitions of `Predictions`: fills, unique markets,
-   positions and resolved positions.
+   window report candidate definitions of `Predictions`: trade activity rows,
+   unique markets, positions and resolved positions.
 
-Expected output per account:
+Actual Stage 1 output:
 
 ```text
-identity.json
+audit.sqlite3
 raw_manifest.json
-fills.parquet
-activity.parquet
-positions.parquet
-market_metadata.parquet
-ledger.parquet
-window_comparison.parquet
+raw_inventory.json
+raw_inventory_summary.json
+window_comparison.csv
+behavior_summary.json
 audit_summary.json
 ```
 
-The account claim is `matched` only when one internally consistent window and
-ledger convention matches PnL, count and biggest win together. Otherwise output
-is `different` or `not_reconstructable`, with the exact missing field.
+The account claim is `matched_public_ledger` only when one internally
+consistent window and ledger convention matches PnL, count and biggest win
+together. Otherwise output is `different` or `not_reconstructable`, with the
+exact missing field.
+
+Stage 1 run and deviations are recorded in
+[the audit report](../../reports/murtazin_profile_audit_stage1.md). The raw
+artifacts stay under ignored `outputs/`; code and config are the reproducible
+contract.
 
 ## 4. Market collector
 
