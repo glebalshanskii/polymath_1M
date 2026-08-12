@@ -28,7 +28,8 @@ class Evaluation:
     support: torch.Tensor
     persistence: torch.Tensor
     side: torch.Tensor
-    chosen_ask: torch.Tensor
+    signal_ask: torch.Tensor
+    fill_vwap: torch.Tensor
     fill_cost: torch.Tensor
     platform_fee: torch.Tensor
     net_edge: torch.Tensor
@@ -67,16 +68,16 @@ def calculate_platform_fee(
     """Calculate current Polymarket taker fees per market/outcome side.
 
     Inputs are matched shares and prices with shape ``[N, 2, L]``. The fee is
-    accumulated over L2 levels and rounded in USDC at the execution boundary.
+    rounded per aggregated matched price level and accumulated over L2 levels.
     """
 
     if shares.shape != prices.shape or shares.ndim != 3:
         raise ValueError("fee inputs must share shape [market, side, level]")
     if fee_rate < 0 or decimals < 0:
         raise ValueError("fee rate and decimals must be nonnegative")
-    raw = (shares * fee_rate * prices * (1 - prices)).sum(dim=2)
+    raw_per_level = shares * fee_rate * prices * (1 - prices)
     scale = float(10**decimals)
-    return torch.round(raw * scale) / scale
+    return (torch.round(raw_per_level * scale) / scale).sum(dim=2)
 
 
 def fit_lookup_model(
@@ -145,7 +146,9 @@ def evaluate_batch(
     probabilities = torch.stack((probability_up, 1 - probability_up), dim=1)
     prices = batch.ask_depth_prices
     sizes = torch.nan_to_num(batch.ask_depth_sizes, nan=0.0, posinf=0.0, neginf=0.0)
-    usable = torch.isfinite(prices) & (prices > 0) & (sizes > 0)
+    usable = (
+        torch.isfinite(prices) & (prices > 0) & (prices <= maximum_ask) & (sizes > 0)
+    )
     prices = torch.where(usable, prices, torch.ones_like(prices))
     sizes = torch.where(usable, sizes, torch.zeros_like(sizes))
     level_notional = prices * sizes
@@ -178,24 +181,25 @@ def evaluate_batch(
     )
     gather = side.unsqueeze(1)
     chosen_probability = probabilities.gather(1, gather).squeeze(1)
-    chosen_ask = side_vwap.gather(1, gather).squeeze(1)
+    signal_ask = batch.asks.gather(1, gather).squeeze(1)
+    fill_vwap = side_vwap.gather(1, gather).squeeze(1)
     chosen_shares = side_shares.gather(1, gather).squeeze(1)
     chosen_cost = side_cost.gather(1, gather).squeeze(1)
     chosen_fee = side_fee.gather(1, gather).squeeze(1)
     chosen_fee_per_share = side_fee_per_share.gather(1, gather).squeeze(1)
     net_edge = (
-        chosen_probability - chosen_ask - chosen_fee_per_share - extra_cost_per_share
+        chosen_probability - fill_vwap - chosen_fee_per_share - extra_cost_per_share
     )
     support = model.support[states]
     persistence = model.persistence[states]
 
-    status = torch.zeros(len(batch), dtype=torch.int64, device=chosen_ask.device)
+    status = torch.zeros(len(batch), dtype=torch.int64, device=fill_vwap.device)
     eligible = batch.snapshot_valid.clone()
     status[~eligible] = 1
     failed = eligible & (support < minimum_support)
     status[failed] = 2
     eligible &= ~failed
-    failed = eligible & ((chosen_ask < minimum_ask) | (chosen_ask > maximum_ask))
+    failed = eligible & ((signal_ask < minimum_ask) | (signal_ask > maximum_ask))
     status[failed] = 3
     eligible &= ~failed
     failed = eligible & (persistence < minimum_persistence)
@@ -216,19 +220,19 @@ def evaluate_batch(
         status[failed] = 8
         eligible &= ~failed
 
-    fill_shares = torch.where(eligible, chosen_shares, torch.zeros_like(chosen_ask))
-    fill_cost = torch.where(eligible, chosen_cost, torch.zeros_like(chosen_ask))
-    platform_fee = torch.where(eligible, chosen_fee, torch.zeros_like(chosen_ask))
+    fill_shares = torch.where(eligible, chosen_shares, torch.zeros_like(fill_vwap))
+    fill_cost = torch.where(eligible, chosen_cost, torch.zeros_like(fill_vwap))
+    platform_fee = torch.where(eligible, chosen_fee, torch.zeros_like(fill_vwap))
     filled = eligible & (fill_shares > 0)
     status[eligible & ~filled] = 6
     settlement = torch.where(side == 0, batch.outcome_up, 1 - batch.outcome_up)
     gross_pnl = torch.where(
-        filled, fill_shares * settlement - fill_cost, torch.zeros_like(chosen_ask)
+        filled, fill_shares * settlement - fill_cost, torch.zeros_like(fill_vwap)
     )
     extra_cost = torch.where(
         filled,
         fill_shares * extra_cost_per_share,
-        torch.zeros_like(chosen_ask),
+        torch.zeros_like(fill_vwap),
     )
     net_pnl = gross_pnl - platform_fee - extra_cost
     return Evaluation(
@@ -237,7 +241,8 @@ def evaluate_batch(
         support=support,
         persistence=persistence,
         side=side,
-        chosen_ask=chosen_ask,
+        signal_ask=signal_ask,
+        fill_vwap=fill_vwap,
         fill_cost=fill_cost,
         platform_fee=platform_fee,
         net_edge=net_edge,

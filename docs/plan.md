@@ -2,10 +2,10 @@
 
 - Обновлено: 2026-08-13
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Этап 3 — historical adapters и minimal strategy engine;
+- Текущий этап: **Этап 4 — historical screening backtest;
   24-hour Stage 2 validation идёт параллельно**
-- Следующий deliverable: pinned Kacho 5m adapter, tiny end-to-end backtest и
-  PMXT compatibility smoke
+- Следующий deliverable: fixed Gamma universe, PMXT L2 dataset и chronological
+  model/control screening
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -139,7 +139,7 @@ prospective paper trading.
 
 ## Этап 3. Minimal strategy engine
 
-Статус: **ready after dataset-source audit; 24-hour live gate идёт параллельно**.
+Статус: **completed 2026-08-13; scientific strategy claim not applicable**.
 
 ### Работы
 
@@ -159,15 +159,30 @@ prospective paper trading.
 
 ### Done
 
-- tiny end-to-end run от market event до settlement PnL;
-- future data не меняют past decision;
-- analytical book/fee/PnL tests проходят;
-- every rejection/order/fill объясним по log;
-- fixed seed/config/data воспроизводят result.
+- Pinned Kacho downloader проверяет exact bytes/SHA-256 и пишет local manifest.
+- PMXT adapter читает hourly Parquet с predicate по `condition_id`, использует
+  receive time и восстанавливает full L2 только после первого snapshot.
+- На фиксированном overlap market PMXT и Kacho совпали по всем четырём top
+  prices с абсолютной разницей `0.00`.
+- Общий adapter-neutral `DecisionBatch` используется model/execution engine;
+  live collector должен выдавать тот же contract на Этапе 5.
+- PyTorch engine реализует train-only terminal lookup, one-step persistence,
+  vectorized ask walk, partial FAK fill, current Polymarket taker fee proxy,
+  fixed size, one entry/market и hold to resolution.
+- Технический smoke: 1,200 BTC 5m markets, chronological 60/20/20; test 170
+  fills, net PnL `-824.07 USDC`. Это отрицательный engineering smoke с
+  permissive config, а не оценка пяти candidate configs.
+- Future settlement mutation не меняет side/fill/edge; analytical fee/book/PnL
+  oracle, adapter tests и весь suite из 29 tests проходят.
+- Два одинаковых запуска дали одинаковые SHA-256 для effective config,
+  dataset manifest, model, decisions и summary.
+
+Подробности: [Stage 3 report](reports/murtazin_strategy_engine_stage3.md) и
+[ADR-0005](adr/0005-stage3-strategy-engine.md).
 
 ## Этап 4. Historical screening backtest
 
-Статус: **pending engine**.
+Статус: **in progress; выполняется сразу поверх Stage 3 branch**.
 
 ### Работы
 

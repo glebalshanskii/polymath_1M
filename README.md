@@ -39,6 +39,13 @@ March–April 2026. Exact article claims публичным ledger не
 series, exact market rules/fees, CLOB L2, Chainlink TWAP 30s/60s, Binance
 hourly reference и детерминированный raw replay.
 
+Этап 3 завершён: pinned downloader для Kacho, remote-predicate PMXT adapter,
+общий causal `DecisionBatch`, terminal lookup, Markov persistence filter,
+vectorized full-L2 FAK walk, taker fees и settlement PnL реализованы и покрыты
+аналитическими тестами. Технический Kacho smoke намеренно не является
+стратегией-кандидатом: его test result отрицательный. Детали — в
+[Stage 3 report](docs/reports/murtazin_strategy_engine_stage3.md).
+
 Для historical backtest не ждём собственного многомесячного архива. Primary
 source — публичный PMXT v2 CLOB event archive; компактный Kacho 5m dataset
 используется для быстрого запуска strategy engine. Pinned revisions,
@@ -66,3 +73,18 @@ uv run polymath_1M collector-replay --run-dir <run-dir>
 `--duration-seconds 300`. Raw capture остаётся в ignored `outputs/collector/`;
 binary schema и acceptance gate описаны в
 [collector protocol](docs/protocols/collector/0001_stage2_collector.md).
+
+Загрузка pinned BTC subset и development backtest:
+
+```bash
+uv run polymath_1M kacho-download \
+  --config cfg/datasets/kacho_5m.json \
+  --data-root data/historical \
+  --assets BTC
+uv run polymath_1M backtest-kacho \
+  --config cfg/experiments/stage3_kacho_5m_tiny.json
+uv run polymath_1M pmxt-overlap-smoke \
+  --config cfg/experiments/stage3_pmxt_overlap_smoke.json
+```
+
+Данные и подробные decisions остаются в ignored `data/` и `outputs/`.
