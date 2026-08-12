@@ -46,7 +46,7 @@ class ScreeningConfig:
     initial_bankroll_usdc: float
     maximum_drawdown_fraction: float
     minimum_profit_factor: float
-    maximum_week_profit_share: float
+    maximum_single_day_profit_share: float
     minimum_test_calendar_days_for_concentration: int
     neighbor_edge_delta: float
     neighbor_persistence_delta: float
@@ -66,6 +66,24 @@ class ScreeningConfig:
     @property
     def period_end_ms(self) -> int:
         return int(self.period_end_exclusive.timestamp() * 1_000)
+
+    @property
+    def data_contract_sha256(self) -> str:
+        payload = {
+            "schema_version": self.schema_version,
+            "experiment_id": self.experiment_id,
+            "collector_config": self.collector_config,
+            "pmxt_config": self.pmxt_config,
+            "period_start": self.period_start.isoformat(),
+            "period_end_exclusive": self.period_end_exclusive.isoformat(),
+            "decision_seconds_before_end": self.decision_seconds_before_end,
+            "transition_horizon_seconds": self.transition_horizon_seconds,
+            "execution_latency_ms": self.execution_latency_ms,
+        }
+        canonical = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode()
+        return hashlib.sha256(canonical).hexdigest()
 
 
 def load_screening_config(path: str | Path) -> ScreeningConfig:
@@ -113,7 +131,7 @@ def load_screening_config(path: str | Path) -> ScreeningConfig:
         "initial_bankroll_usdc",
         "maximum_drawdown_fraction",
         "minimum_profit_factor",
-        "maximum_week_profit_share",
+        "maximum_single_day_profit_share",
         "minimum_test_calendar_days_for_concentration",
         "neighbor_edge_delta",
         "neighbor_persistence_delta",
@@ -152,7 +170,9 @@ def load_screening_config(path: str | Path) -> ScreeningConfig:
         initial_bankroll_usdc=float(payload["initial_bankroll_usdc"]),
         maximum_drawdown_fraction=float(payload["maximum_drawdown_fraction"]),
         minimum_profit_factor=float(payload["minimum_profit_factor"]),
-        maximum_week_profit_share=float(payload["maximum_week_profit_share"]),
+        maximum_single_day_profit_share=float(
+            payload["maximum_single_day_profit_share"]
+        ),
         minimum_test_calendar_days_for_concentration=int(
             payload["minimum_test_calendar_days_for_concentration"]
         ),

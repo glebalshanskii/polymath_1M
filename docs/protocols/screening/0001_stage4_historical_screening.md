@@ -78,8 +78,8 @@ test для трёх models и трёх costs. Primary gate — `terminal_lookup
 - net PnL > 0;
 - profit factor >= 1.10;
 - maximum drawdown < 10% от frozen 10,000 USDC bankroll;
-- test spans at least 7 calendar days and no UTC week contributes >50% total
-  positive weekly net PnL;
+- test spans at least 2 UTC calendar days and no UTC day contributes >80% total
+  positive daily net PnL;
 - fixed edge neighbours `±0.01` и persistence neighbours `±0.05` не меняют
   знак PnL и сохраняют минимум 50% base PnL.
 
@@ -99,3 +99,13 @@ Raw Gamma pages, hourly PMXT-derived snapshots, OpenMarket checks and detailed
 decisions остаются в ignored `data/`/`outputs/`. В git входят code, exact
 config, protocol, manifest summaries и final report. Любое изменение
 period/split/selection/gates создаёт новый experiment ID.
+
+## Amendment 2026-08-13 — executable concentration gate
+
+До final screening run замечена невозможная исходная комбинация: 20% test от
+8-дневного universe не может покрыть 7 дней, а обычно целиком лежит в одной
+UTC week, поэтому weekly share всегда 100%. Target test metrics не
+просматривались. Gate исправлен на минимум 2 UTC calendar days и максимум 80%
+positive PnL от одного дня. Period, raw data, split, models, costs и остальные
+gates не менялись; config hash обновлён. Это practical screening amendment,
+а не post-hoc улучшение результата.

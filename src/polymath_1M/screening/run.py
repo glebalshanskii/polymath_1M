@@ -83,7 +83,7 @@ def _load_rows(config: ScreeningConfig) -> tuple[list[dict[str, Any]], dict[str,
     if not manifest_path.is_file():
         raise ScreeningRunError("build the PMXT dataset before screening")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("config_sha256") != config.config_sha256:
+    if manifest.get("data_contract_sha256") != config.data_contract_sha256:
         raise ScreeningRunError("PMXT manifest and config hashes differ")
     rows: list[dict[str, Any]] = []
     for item in manifest["hours"]:
@@ -285,17 +285,17 @@ def evaluation_summary(data: ScreeningData, result: Evaluation) -> dict[str, Any
     starts = data.batch.market_start_s.detach().cpu()
     net_cpu = result.net_pnl.detach().cpu()
     weekly: dict[str, float] = defaultdict(float)
-    calendar_days: set[str] = set()
+    daily: dict[str, float] = defaultdict(float)
     for timestamp, value in zip(starts.tolist(), net_cpu.tolist(), strict=True):
         date = datetime.fromtimestamp(timestamp, tz=UTC)
-        calendar_days.add(date.date().isoformat())
+        daily[date.date().isoformat()] += value
         iso = date.isocalendar()
         weekly[f"{iso.year}-W{iso.week:02d}"] += value
-    positive_weekly = {key: value for key, value in weekly.items() if value > 0}
-    positive_week_sum = sum(positive_weekly.values())
-    maximum_week_share = (
-        max(positive_weekly.values()) / positive_week_sum
-        if positive_week_sum > 0
+    positive_daily = {key: value for key, value in daily.items() if value > 0}
+    positive_day_sum = sum(positive_daily.values())
+    maximum_day_share = (
+        max(positive_daily.values()) / positive_day_sum
+        if positive_day_sum > 0
         else None
     )
     fills = int(result.filled.sum().item())
@@ -314,9 +314,10 @@ def evaluation_summary(data: ScreeningData, result: Evaluation) -> dict[str, Any
         ),
         "profit_factor": _optional_ratio(positive, negative),
         "max_drawdown_usdc": max_drawdown,
-        "calendar_days": len(calendar_days),
+        "calendar_days": len(daily),
+        "daily_net_pnl_usdc": dict(sorted(daily.items())),
         "weekly_net_pnl_usdc": dict(sorted(weekly.items())),
-        "maximum_positive_week_share": maximum_week_share,
+        "maximum_positive_day_share": maximum_day_share,
         "status_counts": dict(sorted(statuses.items())),
     }
 
@@ -385,9 +386,9 @@ def _primary_gate(
         >= config.initial_bankroll_usdc * config.maximum_drawdown_fraction
     ):
         failures.append("maximum_drawdown")
-    week_share = summary["maximum_positive_week_share"]
-    if week_share is None or week_share > config.maximum_week_profit_share:
-        failures.append("weekly_concentration")
+    day_share = summary["maximum_positive_day_share"]
+    if day_share is None or day_share > config.maximum_single_day_profit_share:
+        failures.append("daily_concentration")
     base = summary["net_pnl_usdc"]
     for name, neighbor in neighbor_summaries.items():
         if neighbor["net_pnl_usdc"] <= 0 or neighbor["net_pnl_usdc"] < 0.5 * base:

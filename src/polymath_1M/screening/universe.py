@@ -131,7 +131,7 @@ def build_stage4_universe(config_path: str | Path) -> Path:
     manifest_path = root / "universe_manifest.json"
     if universe_path.is_file() and manifest_path.is_file():
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        if manifest.get("config_sha256") != config.config_sha256:
+        if manifest.get("data_contract_sha256") != config.data_contract_sha256:
             raise UniverseDataError("existing universe belongs to a different config")
         if manifest.get("universe_sha256") != _sha256(universe_path):
             raise UniverseDataError("existing universe hash mismatch")
@@ -208,6 +208,7 @@ def build_stage4_universe(config_path: str | Path) -> Path:
         "schema_version": 1,
         "experiment_id": config.experiment_id,
         "config_sha256": config.config_sha256,
+        "data_contract_sha256": config.data_contract_sha256,
         "created_at": datetime.now(UTC).isoformat(),
         "gamma_base_url": collector.gamma_url,
         "period_start": config.period_start.isoformat(),

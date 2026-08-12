@@ -187,7 +187,7 @@ def _build_hour(
     if output_path.is_file() and metadata_path.is_file():
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         if (
-            metadata.get("config_sha256") == config.config_sha256
+            metadata.get("data_contract_sha256") == config.data_contract_sha256
             and metadata.get("parquet_sha256") == _sha256(output_path)
             and metadata.get("market_count") == len(markets)
         ):
@@ -225,6 +225,7 @@ def _build_hour(
         "schema_version": 1,
         "hour": hour,
         "config_sha256": config.config_sha256,
+        "data_contract_sha256": config.data_contract_sha256,
         "pmxt_config_sha256": load_pmxt_archive_config(
             config.pmxt_config
         ).config_sha256,
@@ -256,7 +257,7 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
     if not universe_path.is_file() or not universe_manifest_path.is_file():
         raise ScreeningDatasetError("build the frozen Gamma universe first")
     universe_manifest = json.loads(universe_manifest_path.read_text(encoding="utf-8"))
-    if universe_manifest.get("config_sha256") != config.config_sha256:
+    if universe_manifest.get("data_contract_sha256") != config.data_contract_sha256:
         raise ScreeningDatasetError("universe and screening config hashes differ")
     markets = pq.read_table(universe_path).to_pylist()
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -283,6 +284,7 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
         "schema_version": 1,
         "experiment_id": config.experiment_id,
         "config_sha256": config.config_sha256,
+        "data_contract_sha256": config.data_contract_sha256,
         "created_at": datetime.now(UTC).isoformat(),
         "universe_sha256": universe_manifest["universe_sha256"],
         "hour_count": len(inventory),
