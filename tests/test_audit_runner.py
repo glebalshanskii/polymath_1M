@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -10,6 +12,7 @@ from typing import Any
 from polymath_1M.audit.http import JsonResponse
 from polymath_1M.audit.runner import run_profile_audit
 from polymath_1M.audit.storage import build_raw_inventory
+from polymath_1M.cli import main
 
 
 class FixtureTransport:
@@ -50,6 +53,12 @@ class FixtureTransport:
 
 
 class AuditRunnerTest(unittest.TestCase):
+    def test_cli_without_subcommand_is_a_successful_help_smoke(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            main([])
+        self.assertIn("profile-audit", output.getvalue())
+
     def test_writes_reproducible_artifact_set(self) -> None:
         config = {
             "audit_id": "fixture",

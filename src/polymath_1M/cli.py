@@ -9,7 +9,7 @@ from .audit.storage import build_raw_inventory
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="polymath_1M")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command")
     audit = subparsers.add_parser(
         "profile-audit", help="run the read-only Murtazin profile audit"
     )
@@ -38,7 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command is None:
+        parser.print_help()
+        return
     if args.command == "profile-audit":
         run_dir = run_profile_audit(
             args.config,
