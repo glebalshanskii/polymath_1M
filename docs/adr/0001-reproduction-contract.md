@@ -1,83 +1,65 @@
-# ADR-0001: контракт воспроизведения стратегий Murtazin
+# ADR-0001: из идей статьи в исполнимую стратегию
 
 - Статус: **принято**
 - Дата: 2026-08-12
-- Область: scientific protocol, data contract, interpretation of claims
-
-## Контекст
-
-Статья задаёт общую Markov-конструкцию, entry gate и таблицу порогов для трёх
-Polymarket-аккаунтов, но не определяет state construction, estimator матрицы
-переходов, связь price state с terminal outcome, execution, exit и sizing. В
-статье также есть внутренние противоречия. Одно неявное заполнение пробелов
-создало бы реализацию, которую нельзя честно назвать воспроизведением авторской
-стратегии.
+- Область: venue, model, execution, validation
 
 ## Решение
 
-Работа разделяется на три независимо именуемых трека:
+Мы не пытаемся угадать скрытый код трёх аккаунтов. Мы используем
+статью как набор торговых гипотез и делаем свою реализацию.
 
-1. `account-audit` — детерминированное восстановление публичного ledger и
-   проверка напечатанных counts/P&L. Оно описывает поведение аккаунта, но не
-   доказывает его скрытый алгоритм.
-2. `paper-literal` — буквальный proxy по формулам (2.1)–(2.7) и таблице на
-   странице 9. Все необходимые дополнительные assumptions фиксируются в config.
-   Этот трек является diagnostic baseline/proxy и называется только
-   «алгоритмом, совместимым с опубликованным фильтром».
-3. `markov-terminal` — математически согласованная extension: прогнозируется
-   expected settlement payout через remaining horizon, затем он
-   сравнивается с executable contract price с учётом costs. Это новая стратегия,
-   а не paper-faithful claim.
+### Venue
 
-Для конфликтующих параметров первичным источником в `paper-literal` считается
-parameter table, сопровождающая формулу (2.7) на странице 9. Противоречащие
-prose/examples запускаются
-только как заранее объявленные sensitivity configs. Нельзя выбирать вариант по
-результату target P&L.
+- Торгуем только на Polymarket CLOB.
+- Market discovery и rules: Gamma API.
+- Public account history: Data API плюс on-chain reconciliation.
+- Quotes/depth/orders: CLOB REST и WebSocket.
+- Underlying price: тот source, который указан в market rules;
+  для текущих crypto `Up/Down` это может быть Chainlink TWAP.
+- На backtest не переносим текущие fee rules на прошлые markets:
+  берём `feeSchedule`/CLOB parameters каждого market.
 
-Уровни допустимого утверждения:
+### Модель
 
-- `transcribed` — формула или параметр буквально присутствует в PDF;
-- `reconstructed` — добавлено явно указанное допущение;
-- `validated` — claim прошёл заранее зафиксированный deterministic или
-  statistical gate на подходящих данных;
-- `source-insufficient` — exact claim невозможно проверить имеющимися данными;
-- `inconclusive` — данных или precision недостаточно для статистического решения.
+В статье `max(P[current_state])` назван model probability, но это
+вероятность следующего state, а не выплаты market. Для рабочей
+стратегии модель напрямую оценивает:
 
-Термин `arbitrage` не используется для сигнала $\hat p-q$: payoff остаётся
-рисковым, а edge зависит от calibration модели и исполнения. Используется термин
-`model-implied edge`.
+$$
+p_{w,d,t}=\Pr(\text{side }d\text{ receives settlement payout}\mid x_{w,t}).
+$$
 
-До executable backtest обязательны point-in-time market universe, causal feature
-timestamps, исторические fee rules и исполнимая цена. Backtest по midpoint/last
-без L2 depth маркируется `frictionless-indicative` и не может пройти deployment
-gate.
+Первая реализация — smoothed empirical lookup table по дискретному
+state. Если она слишком sparse, следующий шаг — простая logistic
+model. One-step transition probability и state persistence остаются
+features/filters. Они не подменяют terminal probability.
 
-## Последствия
+### Execution
 
-Положительные:
+- Сигнал сравнивается с ask VWAP на размер ордера, а не с display,
+  midpoint или last price.
+- MVP и paper trading используют FAK с worst-price limit.
+- Одна позиция на market, без averaging/re-entry.
+- Первый exit — `hold_to_resolution`. Early exit добавляется только после
+  сбора реального bid depth.
+- Размер фиксированный и малый. Kelly не входит в MVP.
 
-- неизвестная приватная логика не будет подменена нашей реализацией;
-- ошибки literal baseline можно измерить отдельно от пользы coherent extension;
-- account P&L, signal quality и execution economics получают разные acceptance
-  gates;
-- отрицательный результат останется информативным.
+### Validation
 
-Издержки:
+- Historical minute-price backtest — быстрый reject/filter, а не допуск к live.
+- В тот же день запускаем prospective collector полного L2 и reference feed.
+- На train/validation можно выбирать state bins и thresholds. Test проходит
+  один раз на более поздних markets.
+- В paper trading идёт один зафиксированный config, а не winner из
+  постоянно меняющегося набора.
+- Live разрешается только после положительного paper P&L после
+  реальных fees/slippage, проверки capacity и risk controls.
 
-- вместо одного backtest нужны несколько configs и ablations;
-- exact reproduction может навсегда остаться `source-insufficient`;
-- исторический executable backtest может быть невозможен без архивных L2
-  snapshots; тогда потребуется prospective paper-trading collection.
+## Отклонено
 
-## Отклонённые альтернативы
-
-- **Считать `np.max(P[current_state])` terminal settlement value.**
-  Отклонено: это
-  вероятности разных событий и, возможно, разных горизонтов.
-- **Вывести алгоритм из нескольких прибыльных позиций на screenshots.**
-  Отклонено из-за selection/survivorship bias и отсутствия проигрышных trades.
-- **Считать заявленный P/L доказательством Markov edge.** Отклонено: публичный
-  ledger не идентифицирует причинный механизм.
-- **Сразу оптимизировать thresholds на March–April данных.** Отклонено: это
-  уничтожит возможность независимой проверки напечатанных параметров.
+- Называть профильный PnL доказательством Markov edge.
+- Строить live strategy из $P^h$ без прямой проверки terminal calibration.
+- Считать 99.5–99.8¢ `level locks` безрисковыми: gross upside меньше
+  0.5¢ и легко съедается fees, queue risk и rare losses.
+- Масштабировать sizing до проверки depth, fill rate и drawdown.

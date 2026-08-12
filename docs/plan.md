@@ -1,303 +1,177 @@
-# План проекта polymath_1M
+# Практический план polymath_1M
 
-- Последнее обновление: 2026-08-12
-- Текущая стадия: **Stage 1 — data/source feasibility, ready**
-- Следующий шаг: зафиксировать exact account/snapshot interval и проверить
-  полноту historical trades, market metadata, outcomes, fees и L2 order books
-- Канонический protocol:
-  [`docs/protocols/reproduction/0001_murtazin_reproduction.md`](protocols/reproduction/0001_murtazin_reproduction.md)
+- Обновлено: 2026-08-12
+- Venue: **Polymarket CLOB**
+- Текущий этап: **profile/API smoke audit + collector MVP**
+- Следующий deliverable: воспроизводимая выгрузка трёх профилей и
+  работающий collector Gamma + CLOB L2 + Chainlink RTDS
+- Executable spec:
+  [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
 ## Цель
 
-1. Проверить воспроизводимость claims статьи Murtazin (2026).
-2. Реализовать paper-literal baseline без скрытых допущений.
-3. Построить математически согласованные стратегии и causal backtests.
-4. Найти устойчивые net-profitable условия на независимом holdout.
-5. Только после paper trading, risk и compliance gates рассматривать live trading.
+Найти на Polymarket криптовалютные `Up/Down` states, в которых
+наша оценка terminal win probability выше реальной ask cost после
+fees и slippage, и превратить этот edge в надёжный trading process.
 
-## Текущий научный вывод
+Статья даёт три starting hypotheses. Успех проекта — не совпадение
+с её формулами, а положительный net PnL на untouched backtest и
+prospective paper trading.
 
-Статья содержит общий Markov entry gate и параметры трёх variants, но не содержит
-полной торговой стратегии или воспроизводимого backtest. Exact algorithm claim
-сейчас имеет статус `source-insufficient`. Проект разделён на:
+## Что уже установлено
 
-- `account-audit` — проверка public ledger/aggregates;
-- `paper-literal` — буквальный диагностический proxy;
-- `markov-terminal` — новая mathematically coherent extension.
+- Статья о Polymarket, а не о centralized crypto exchange.
+- PDF содержит exact links на три profile addresses.
+- Gamma/Data API видят все три linked addresses и их торговую
+  активность.
+- `0xe1D6b514…` в тексте ведёт на linked/profile address
+  `0xe1d6b515…`.
+- Gamma lookup для `0xB27…` возвращает другой proxy, поэтому
+  address mapping нуждается в on-chain/API reconciliation.
+- Current all-time leaderboard PnL не является проверкой historical
+  30-day screenshot.
+- Literal `max(P[current_state])` не оценивает terminal payout; для
+  ордера нужна terminal-probability model.
+- 99.5–99.8¢ level locks, Kelly 0.71 и заявленный 55% diversification не
+  переносятся в MVP.
 
-Это разделение зафиксировано в
-[ADR-0001](adr/0001-reproduction-contract.md). Полный разбор и модели находятся в
-[отчёте](reports/murtazin_strategy_reconstruction.md).
+## Этап 1. Profile audit
 
-## Acceptance dashboard
-
-| Gate | Статус | Evidence / комментарий |
-|---|---|---|
-| Источник зарегистрирован и checksummed | **pass** | [registry](papers/registry.md) |
-| Формулы/таблицы визуально транскрибированы | **pass** | страницы 2–17 проверены; [report](reports/murtazin_strategy_reconstruction.md) |
-| Paper claims внутренне согласованы | **fail** | найдены semantic, parameter и arithmetic contradictions |
-| Исходник достаточен для exact algorithm reproduction | **source-insufficient** | state, estimator, side, execution, exit, sizing отсутствуют |
-| Exact account interval/ledger восстановлены | **pending** | Stage 1 |
-| Historical executable data contract подтверждён | **pending** | Stage 1; главный риск — historical L2 |
-| Minimal executable baseline | **pending** | Stage 2 |
-| Paper aggregate reconciliation | **pending** | Stage 3 |
-| Causal walk-forward backtest | **pending** | Stage 4 |
-| Confirmatory holdout | **blocked-by-design-freeze** | нужны amendment, margin и frozen data |
-| Prospective paper trading | **pending** | Stage 6 |
-| Live trading | **blocked-by-risk/compliance gates** | не начинать до eligibility и deployment review |
-
-`fail` в строке внутренней согласованности относится к deterministic document
-audit, а не к доходности стратегии. Backtest results пока отсутствуют.
-
-## Stage 0 — source audit и reconstruction
-
-Статус: **completed, 2026-08-12**.
-
-Выполнено:
-
-- зарегистрирован online/local source и SHA-256;
-- извлечены formulas (2.1)–(2.7), параметры и linked account addresses;
-- записаны literal и coherent mathematical models;
-- проверены arithmetic/semantic claims и недостающие specification fields;
-- принят контракт разделения треков;
-- создан initial protocol до начала target experiments.
-
-Основные отрицательные результаты сохранены:
-
-- one-step state probability нельзя напрямую сравнивать с terminal contract
-  probability;
-- level locks 99.5–99.8¢ математически несовместимы с gap $>5¢$;
-- reported 55% diversification в показанной equal-weight/equal-variance модели
-  требует near-zero correlation;
-- conditional winning ROI ошибочно назван expected return;
-- compounding/Kelly claims не восстановимы из опубликованных inputs;
-- несколько counts, ranges, durations и totals противоречат друг другу.
-
-Checks: text extraction, page render inspection, link extraction, independent
-math review. Code/tests не запускались, потому что stage docs-only и executable
-package пока отсутствует.
-
-## Stage 1 — data/source feasibility
-
-Статус: **ready (следующая задача)**.
+Статус: **next**.
 
 ### Работы
 
-1. Зафиксировать identity трёх accounts:
-   - `0xeebde7a0e019a63e6b476eb425505b7b3e6eba30`;
-   - разрешить конфликт label `0xe1D6b514…` и linked
-     `0xe1d6b51521bd4365769199f392f9818661bd907c`;
-   - `0xb27bc932bf8110d8f78e55da7d5f0497a18b5b82`.
-2. Найти exact UTC snapshot/30-day interval статьи без подбора по P&L.
-3. Сделать read-only API feasibility sample для Gamma, Data и CLOB APIs:
-   pagination, rate limits, schemas, timestamp semantics, history retention.
-4. Определить полноту public trades/activity и связь `prediction`/order/fill.
-5. Проверить historical market universe, outcome/rules, fee/rebate history,
-   underlying resolution feed и cash-flow visibility.
-6. Отдельно установить, доступны ли historical L2 snapshots. One-minute price
-   history не заменяет depth/fills.
-7. Проверить terms/license и подготовить dataset manifest/data ADR.
-8. Добавить `.gitignore` до создания `outputs/`/datasets; raw/heavy/private data
-   не коммитить.
+1. Реализовать paginated/chunked clients для Gamma/Data API.
+2. Сохранить raw responses и manifest с retrieval time/hash.
+3. Выгрузить March–April 2026 activity/trades/positions трёх addresses.
+4. Построить inventory/cash-flow ledger со сплитами, merges, redemptions,
+   fees, rewards и rebates.
+5. Сверить неоднозначные fills с Polygon events.
+6. Проверить все 30-day windows и count definitions против article PnL,
+   `Predictions` и biggest wins.
+7. Извлечь behavior constraints: assets, series/durations, entry prices,
+   sizes, time-to-expiry, maker/taker mix, trade frequency и rewards.
 
-### Acceptance
+### Done
 
-- exact interval и identities зафиксированы до просмотра reconciliation result;
-- для каждого required field указан authoritative source и timestamp semantics;
-- sample round-trip сохраняет immutable raw payload + hash + manifest;
-- сформирована coverage matrix `available / partial / unavailable`;
-- принято решение:
-  `historical-executable`, `frictionless-indicative` или `prospective-required`.
+- у каждого source address есть identity chain и immutable raw manifest;
+- PnL/count/biggest-win получают `matched`, `different` или
+  `not_reconstructable` с причиной;
+- rewards/rebates и unrealized PnL не смешаны с trading PnL;
+- размеры и частота аккаунтов не копируются в strategy до capacity
+  test.
 
-Если exact window/ledger не найден, account reproduction закрывается как
-`source-insufficient`, но model tracks продолжаются на independently frozen data.
+## Этап 2. Collector MVP
 
-## Stage 2 — minimal executable baseline
-
-Статус: **pending Stage 1**.
+Статус: **start in parallel with Stage 1**.
 
 ### Работы
 
-- создать importable package, typed domain/data models и config contract;
-- реализовать data validation и immutable dataset manifest;
-- реализовать PyTorch causal transition counts/matrix, literal gate и settlement
-  P&L oracle, включая split payout 0.5, если его допускает market rule;
-- начать с одного asset, одного market duration, tiny dataset и одной share;
-- primary exit `hold_to_resolution`, semantics
-  `first_eligible_order_per_market` без retry после no-fill;
-- добавить primary no-Markov control
-  `market_crowd_side_range_only`, filter-only control
-  `entry_range_only_markov_side`, `gap_only` и `persistence_only`;
-- сохранить signals, rejection reasons, fills и ledger audit trail.
+1. Market discovery для BTC/ETH/SOL/XRP 5m, 15m и hourly series.
+2. Хранить exact rules, resolution source, token IDs, fee schedule, tick/min size.
+3. Собирать raw CLOB market WebSocket и восстанавливать full L2 book.
+4. Собирать Chainlink RTDS для того же asset.
+5. Синхронизировать clocks; хранить event и receive timestamps.
+6. Feed health: gaps, staleness, sequence/hash changes, reconnect/resubscribe.
 
-### Acceptance
+### Done
 
-- базовые команды репозитория применимы и проходят;
-- unit tests проверяют shapes/dtype/device, row sums, cold start, thresholds;
-- analytical P&L/fee oracles совпадают;
-- future-data perturbation не меняет past signals;
-- два запуска с frozen seed/config/data воспроизводимы;
-- smoke run завершается end-to-end и создаёт manifest/report.
+- 24-hour smoke capture без unexplained gaps;
+- raw events детерминированно восстанавливают books и features;
+- market outcome и price-to-beat сверены с rules/source;
+- collector outputs ignored raw storage + committed manifest/schema.
 
-## Stage 3 — account behavior и paper aggregate audit
+## Этап 3. Minimal strategy engine
 
-Статус: **pending Stages 1–2**.
+Статус: **pending collector schema**.
 
 ### Работы
 
-- reconstruct all fills/positions/cash flows за frozen interval;
-- reconcile counts, realized/unrealized P&L и biggest wins;
-- измерить фактические asset/duration/price/size/time distributions;
-- проверить, согласуются ли наблюдаемые trades с published filters;
-- документировать все losses, out-of-range entries и count definitions.
+1. PyTorch state binning и smoothed terminal win-rate lookup.
+2. Literal one-step transition/persistence feature как baseline/filter.
+3. Ask-VWAP, market fee и net-edge calculation.
+4. Один decision engine для historical и live adapters.
+5. FAK shadow execution, fixed size, one entry/market, hold to resolution.
+6. Configs:
+   - `favorite_hourly`;
+   - `directional_mid_15m` и `_1h`;
+   - `multi_asset_short_5m` и `_15m`.
 
-### Acceptance
+### Done
 
-- ledger reconciles to frozen display/rounding intervals, либо result честно
-  классифицирован `different`/`source-insufficient`;
-- ни одно совпадение не интерпретируется как доказательство hidden algorithm;
-- raw-to-report lineage полна.
+- tiny end-to-end run от market event до settlement PnL;
+- future data не меняют past decision;
+- analytical book/fee/PnL tests проходят;
+- every rejection/order/fill объясним по log;
+- fixed seed/config/data воспроизводят result.
 
-## Stage 4 — paper-literal и coherent walk-forward experiments
+## Этап 4. Historical screening backtest
 
-Статус: **pending Stages 1–3**.
+Статус: **pending engine**.
 
 ### Работы
 
-1. Запустить `paper-literal` с frozen table parameters.
-2. Запустить заранее объявленные operator/side/re-entry sensitivities без выбора
-   winner post-hoc.
-3. Реализовать `markov-terminal` через $P^h$ либо отдельно названную causal
-   outcome model.
-4. Провести ablations one factor at a time:
-   - market-only side versus Markov-selected side;
-   - range only → +gap → +persistence conditional on fixed Markov side;
-   - one-step maximum versus expected terminal settlement payout;
-   - frictionless versus full costs;
-   - state construction;
-   - asset/timeframe pooling.
-5. Проверить calibration, capacity, regime/time-of-day stability и correlation.
+1. Собрать Gamma universe/outcomes и CLOB `prices-history`.
+2. Chronological market split 60/20/20.
+3. Train lookup/logistic model; выбрать config только на validation.
+4. Один final test для выбранного config.
+5. Стоимостные scenarios: exact fee + 0.5¢ / 1¢ / 2¢ на share.
+6. Сравнить range-only, literal Markov и terminal model.
 
-### Acceptance
+### Gate to paper selection
 
-- только walk-forward, point-in-time universe и executable timestamp order;
-- universe/coverage mask не зависит от strategy signal/outcome и
-  является общей для full/controls только внутри каждого variant;
-  missing L2 не превращается в `no_fill`;
-- gross, costs и net results разделены;
-- incremental source каждого improvement показан ablation;
-- failed/negative runs сохранены;
-- development results не называются confirmatory.
+- не менее 300 traded test markets;
+- net PnL > 0 при exact fee + 1¢/share;
+- profit factor ≥ 1.10;
+- max drawdown < 10% normalized bankroll;
+- ни одна week не даёт >50% profit;
+- соседние параметры не обрушают result.
 
-## Stage 5 — confirmatory holdout
+Даже прошедший historical run без L2 не имеет права на live.
 
-Статус: **blocked pending protocol amendment**.
+## Этап 5. Prospective paper trading
 
-Перед запуском amendment фиксирует точный contract из protocol:
+Статус: **pending selected config and collector burn-in**.
 
-- primary `frozen_at_calibration` policy: one share,
-  `first_eligible_order_per_market`, marketable-limit taker, hold to resolution;
-- variant-specific eligible universes, общий внутри variant
-  outcome-blind covered set для full/control, market-level UTC-day anchor,
-  purge/embargo, staleness и missingness gates; coverage охватывает
-  все potential decision и execution-arrival/evaluation timestamps по
-  frozen grid/latency support, а не только signal-dependent arrivals;
-- три exact configs: `bonereaper_terminal_p_h`, `e1_terminal_p_h`,
-  `b27_terminal_p_h`;
-- два ratios-of-sums estimands для каждого config: net
-  `USDC per covered eligible market` и paired increment над no-Markov
-  `market_crowd_side_range_only` в тех же единицах;
-- secondary paired increment над `entry_range_only_markov_side` только
-  как exploratory/descriptive gap/persistence contrast conditional on Markov
-  side; confirmatory claim требует отдельной registered family/error budget;
-- numerical economically justified $\delta_k$ в
-  `USDC per covered eligible market`;
-- family из шести estimands и simultaneous 95% two-sided studentized max-$|t|$
-  non-circular moving-block-bootstrap intervals по одним и тем же
-  contiguous calendar-day indices для vectors $V_d$, где
-  $V_d=(G_{d,k,\mathrm{full}},
-  G_{d,k,\mathrm{market\_crowd\_side\_range\_only}},M_{d,k})_{k=1}^3$;
-- target population future deployment-like consecutive UTC cohort days,
-  weak-stationarity/mixing assumption и outcome-blind structural-break gate;
-  календарные дни с $M_{d,k}=0$ остаются в ряду;
-- calibration/pilot-only block rule, long-run SE/studentization, edge handling,
-  resample count/seed, zero-denominator rule, minimum effective
-  blocks/days/markets/fills, numerical half-width bound и fixed horizon;
-- any unestimable primary dimension делает всю six-dimensional family
-  `inconclusive`; нельзя post-hoc удалять dimension и понижать
-  max-$|t|$ critical value;
-- substantive planning alternatives выше $0/\delta_k$ и simulation-based
-  не менее 80% disjunctive power для pass хотя бы одного заранее
-  названного config без последующего продления holdout;
-- full joint power-simulation DGP для всех configs: denominator process,
-  tails, serial/cross-config covariance, missing/fill process, under-alternative
-  generator, Monte Carlo repetitions/seed и maximum Monte Carlo SE;
-- exhaustive decisions `invalid`, adequacy-first `inconclusive`, `pass`,
-  `nonpositive`,
-  `positive-not-meaningful`, `inconclusive`.
+### Работы
 
-`pass` требует одновременно $L_{\eta,k}>0$ и
-$L_{\Delta,k}>\delta_k$ только после deterministic и
-exposure/precision adequacy gates. Недостаточная
-coverage делает executable run `invalid`; недостаточные
-exposure/precision дают `inconclusive`. Global project success означает
-pass хотя бы одного из трёх configs при simultaneous family control.
+1. Зафиксировать один config/model/version до run.
+2. Каждый signal превращать в shadow FAK с worst-price limit.
+3. Считать fills по book после measured p50 и p95 latency.
+4. Использовать actual market fees, partial fills и settlement.
+5. Не менять config во время 30-day/500-fill run.
 
-Data pathway выбирается до outcome analysis:
+### Gate to live canary
 
-- `historical-executable`: amendment до P&L scan фиксирует search start,
-  horizon и правило earliest contiguous outcome-blind qualifying window;
-- `prospective-required`: Stage 4 остаётся diagnostic; сначала
-  production-equivalent collector проходит отдельный unscored burn-in/pilot,
-  затем фиксируются acquisition commit/config/schema/access и enrollment
-  horizon, и только на непересекающемся будущем периоде набирается
-  blinded target; raw hashes фиксируются после data lock, анализ
-  происходит один раз.
+- minimum 30 days и 500 shadow fills;
+- p95-latency net PnL > 0 после fees;
+- lower 95% day-block bootstrap bound for mean daily net PnL > 0;
+- profit factor ≥ 1.10, max drawdown < 10%;
+- collector uptime ≥ 99.5%;
+- no unresolved order/inventory/settlement mismatch;
+- target canary size помещается в book без потери edge;
+- one trade contributes <25% net profit.
 
-Historical frictionless и prospective executable estimates принадлежат разным
-periods/regimes и не считаются paired или автоматически equivalent.
-
-## Stage 6 — prospective paper trading
-
-Статус: **pending confirmatory evidence**.
-
-### Работы и gates
-
-- production-equivalent live feed и prospective full-depth capture;
-- shadow orders с realistic latency/partial fills/fees;
-- capital, inventory, exposure, stale-data и recovery controls;
-- drift/calibration monitoring и kill switch;
-- отдельный, более поздний заранее заданный evaluation horizon без retuning.
-
-Переход дальше возможен при прохождении заранее зарегистрированного operational
-paper-trading gate и отсутствии unresolved critical risks. Простое сравнение
-historical и prospective point estimates не является equivalence: equivalence
-требует symmetric margin и TOST, non-inferiority — отдельный margin/one-sided
-test и дизайн, учитывающий непарные regimes.
-
-## Stage 7 — ограниченный live deployment
+## Этап 6. Live canary
 
 Статус: **not authorized**.
 
-До live нужны current terms/legal review, KYC/KYB и geographic eligibility,
-security/secrets review, independent risk approval, hard notional/loss limits,
-kill switch и staged canary. Официальная документация Polymarket содержит
-blocked/close-only jurisdictions; обход ограничений не является допустимым
-этапом проекта.
+Перед стартом: platform/KYC/geographic eligibility, isolated wallet, secrets
+review, reconciliation, cancel-all и kill-switch tests.
 
-После canary масштабирование зависит от realized slippage/capacity и не использует
-непроверенный full-Kelly sizing. Каждое изменение model/execution/risk config
-возвращает систему как минимум в paper-trading gate.
+Начальные limits:
 
-## Сквозные deliverables
+- max 10 USDC/order;
+- max 0.5% bankroll/asset;
+- max 2% total open exposure;
+- daily loss stop 2%;
+- no Kelly, no maker orders, no repeated entry.
 
-Для завершённого research stage одновременно обновлять:
+Масштабирование возможно только по измеренным fills, depth, slippage и
+drawdown, а не по sizes аккаунтов из статьи.
 
-- этот план;
-- соответствующий ADR при изменении contract/decision;
-- immutable protocol/amendment до run;
-- report с commit/config/seed/data/hardware/runtime/metrics/artifacts;
-- README, если меняется public workflow.
+## Артефакты и документы
 
-Тяжёлые artifacts размещаются в ignored `outputs/`, datasets — в versioned
-external/local storage; в git остаются manifests, configs, tests и reports.
+После каждого этапа обновлять этот план, relevant ADR/spec и report.
+Heavy raw books/activity и credentials не коммитятся; в git остаются schemas,
+configs, manifests, code, tests и summary reports.
