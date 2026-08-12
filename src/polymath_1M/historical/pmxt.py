@@ -12,7 +12,7 @@ import duckdb
 import pyarrow as pa
 import torch
 
-from polymath_1M.collector.book import BookDataError, OrderBookStore, PRICE_SCALE
+from polymath_1M.collector.book import PRICE_SCALE, BookDataError, OrderBookStore
 
 
 class PmxtDataError(ValueError):
@@ -92,6 +92,8 @@ def query_pmxt_hour(
     config: PmxtArchiveConfig,
     hour: str,
     condition_ids: tuple[str, ...] | list[str],
+    *,
+    require_all: bool = True,
 ) -> tuple[str, pa.Table]:
     if not condition_ids:
         raise PmxtDataError("at least one condition ID is required")
@@ -133,7 +135,7 @@ def query_pmxt_hour(
         raise PmxtDataError(f"no PMXT rows for requested conditions in {hour}")
     returned = {str(value).lower() for value in table["condition_id"].to_pylist()}
     missing = set(normalized) - returned
-    if missing:
+    if missing and require_all:
         raise PmxtDataError(f"PMXT hour is missing conditions: {sorted(missing)}")
     return url, table
 
@@ -186,6 +188,9 @@ def _apply_binary_snapshot(
     if token_id not in token_ids:
         raise PmxtDataError(f"snapshot token {token_id} is outside requested market")
     other_token = token_ids[1] if token_id == token_ids[0] else token_ids[0]
+    other_book = store.books.get(other_token)
+    if other_book is not None and other_book.initialized:
+        return
     store.apply_raw(
         json.dumps(
             {
@@ -224,63 +229,16 @@ def _apply_change_group(store: OrderBookStore, rows: list[dict[str, Any]]) -> No
     )
 
 
-def replay_pmxt_book(
-    table: pa.Table,
+def _extract_snapshot(
+    store: OrderBookStore,
     *,
     condition_id: str,
     token_ids: tuple[str, str],
-    decision_timestamp_ms: int,
+    cutoff_timestamp_ms: int,
+    event_rows: int,
+    ignored_pre_snapshot_rows: int,
+    initial_snapshot_received_ms: int,
 ) -> PmxtBookSnapshot:
-    rows = sorted(
-        [
-            row
-            for row in table.to_pylist()
-            if str(row["condition_id"]).lower() == condition_id.lower()
-            and int(row["receive_timestamp_ms"]) <= decision_timestamp_ms
-        ],
-        key=lambda row: (
-            int(row["receive_timestamp_ms"]),
-            int(row["source_timestamp_ms"]),
-            int(row.get("source_row", 0)),
-        ),
-    )
-    if not rows:
-        raise PmxtDataError("no PMXT events are observable by the decision timestamp")
-    store = OrderBookStore()
-    index = 0
-    ignored_pre_snapshot_rows = 0
-    initial_snapshot_received_ms: int | None = None
-    try:
-        while index < len(rows):
-            row = rows[index]
-            event_type = row["event_type"]
-            if event_type == "book":
-                _apply_binary_snapshot(store, row, token_ids)
-                if initial_snapshot_received_ms is None:
-                    initial_snapshot_received_ms = int(row["receive_timestamp_ms"])
-                index += 1
-            elif event_type == "price_change":
-                receive_timestamp = row["receive_timestamp_ms"]
-                group: list[dict[str, Any]] = []
-                while (
-                    index < len(rows)
-                    and rows[index]["event_type"] == "price_change"
-                    and rows[index]["receive_timestamp_ms"] == receive_timestamp
-                ):
-                    group.append(rows[index])
-                    index += 1
-                if initial_snapshot_received_ms is None:
-                    ignored_pre_snapshot_rows += len(group)
-                else:
-                    _apply_change_group(store, group)
-            else:
-                index += 1
-    except (BookDataError, KeyError, TypeError, ValueError) as exc:
-        raise PmxtDataError(f"PMXT book replay failed: {exc}") from exc
-
-    if initial_snapshot_received_ms is None:
-        raise PmxtDataError("no full-L2 snapshot exists by the decision timestamp")
-
     top_bids = torch.full((2,), torch.nan, dtype=torch.float64)
     top_asks = torch.full((2,), torch.nan, dtype=torch.float64)
     depth: list[tuple[torch.Tensor, torch.Tensor]] = []
@@ -297,7 +255,7 @@ def replay_pmxt_book(
         if best_ask is not None:
             top_asks[side_index] = best_ask / PRICE_SCALE
         ask_indices = torch.nonzero(book.levels[1] > 0, as_tuple=False).flatten()
-        ask_sizes = book.levels[1].index_select(0, ask_indices)
+        ask_sizes = book.levels[1].index_select(0, ask_indices).clone()
         depth.append((ask_indices.to(torch.float64) / PRICE_SCALE, ask_sizes))
     maximum_depth = max((prices.numel() for prices, _ in depth), default=0)
     depth_prices = torch.full((2, maximum_depth), torch.nan, dtype=torch.float64)
@@ -307,14 +265,114 @@ def replay_pmxt_book(
         depth_sizes[side_index, : sizes.numel()] = sizes
     return PmxtBookSnapshot(
         condition_id=condition_id.lower(),
-        decision_timestamp_ms=decision_timestamp_ms,
+        decision_timestamp_ms=cutoff_timestamp_ms,
         token_ids=token_ids,
         bids=top_bids,
         asks=top_asks,
         ask_depth_prices=depth_prices,
         ask_depth_sizes=depth_sizes,
-        event_rows=len(rows),
+        event_rows=event_rows,
         ignored_pre_snapshot_rows=ignored_pre_snapshot_rows,
         initial_snapshot_received_ms=initial_snapshot_received_ms,
         initialized=initialized,
     )
+
+
+def replay_pmxt_books_at(
+    table: pa.Table,
+    *,
+    condition_id: str,
+    token_ids: tuple[str, str],
+    cutoff_timestamps_ms: tuple[int, ...],
+) -> tuple[PmxtBookSnapshot | None, ...]:
+    """Replay one condition once and materialize causal books at many cutoffs."""
+
+    if not cutoff_timestamps_ms or any(
+        right <= left
+        for left, right in zip(
+            cutoff_timestamps_ms[:-1], cutoff_timestamps_ms[1:], strict=True
+        )
+    ):
+        raise PmxtDataError("PMXT cutoffs must be nonempty and strictly increasing")
+    rows = sorted(
+        [
+            row
+            for row in table.to_pylist()
+            if str(row["condition_id"]).lower() == condition_id.lower()
+            and int(row["receive_timestamp_ms"]) <= cutoff_timestamps_ms[-1]
+        ],
+        key=lambda row: (
+            int(row["receive_timestamp_ms"]),
+            int(row["source_timestamp_ms"]),
+            int(row.get("source_row", 0)),
+        ),
+    )
+    store = OrderBookStore()
+    index = 0
+    ignored_pre_snapshot_rows = 0
+    initial_snapshot_received_ms: int | None = None
+    snapshots: list[PmxtBookSnapshot | None] = []
+    try:
+        for cutoff in cutoff_timestamps_ms:
+            while (
+                index < len(rows) and int(rows[index]["receive_timestamp_ms"]) <= cutoff
+            ):
+                row = rows[index]
+                event_type = row["event_type"]
+                if event_type == "book":
+                    _apply_binary_snapshot(store, row, token_ids)
+                    if initial_snapshot_received_ms is None:
+                        initial_snapshot_received_ms = int(row["receive_timestamp_ms"])
+                    index += 1
+                elif event_type == "price_change":
+                    receive_timestamp = row["receive_timestamp_ms"]
+                    group: list[dict[str, Any]] = []
+                    while (
+                        index < len(rows)
+                        and rows[index]["event_type"] == "price_change"
+                        and rows[index]["receive_timestamp_ms"] == receive_timestamp
+                        and int(rows[index]["receive_timestamp_ms"]) <= cutoff
+                    ):
+                        group.append(rows[index])
+                        index += 1
+                    if initial_snapshot_received_ms is None:
+                        ignored_pre_snapshot_rows += len(group)
+                    else:
+                        _apply_change_group(store, group)
+                else:
+                    index += 1
+            if initial_snapshot_received_ms is None:
+                snapshots.append(None)
+            else:
+                snapshots.append(
+                    _extract_snapshot(
+                        store,
+                        condition_id=condition_id,
+                        token_ids=token_ids,
+                        cutoff_timestamp_ms=cutoff,
+                        event_rows=index,
+                        ignored_pre_snapshot_rows=ignored_pre_snapshot_rows,
+                        initial_snapshot_received_ms=initial_snapshot_received_ms,
+                    )
+                )
+    except (BookDataError, KeyError, TypeError, ValueError) as exc:
+        raise PmxtDataError(f"PMXT book replay failed: {exc}") from exc
+    return tuple(snapshots)
+
+
+def replay_pmxt_book(
+    table: pa.Table,
+    *,
+    condition_id: str,
+    token_ids: tuple[str, str],
+    decision_timestamp_ms: int,
+) -> PmxtBookSnapshot:
+    snapshot = replay_pmxt_books_at(
+        table,
+        condition_id=condition_id,
+        token_ids=token_ids,
+        cutoff_timestamps_ms=(decision_timestamp_ms,),
+    )[0]
+    if snapshot is None:
+        raise PmxtDataError("no full-L2 snapshot exists by the decision timestamp")
+    return snapshot

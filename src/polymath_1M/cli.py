@@ -9,6 +9,9 @@ from .collector.replay import replay_run
 from .collector.runner import run_collector
 from .historical.download import download_kacho_dataset
 from .historical.overlap import run_pmxt_overlap_smoke
+from .screening.pmxt_dataset import build_stage4_pmxt_dataset
+from .screening.run import run_stage4_screening
+from .screening.universe import build_stage4_universe
 from .strategy.backtest import run_kacho_backtest
 
 
@@ -115,6 +118,38 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/overlap",
         help="ignored directory for overlap artifacts",
     )
+    universe = subparsers.add_parser(
+        "stage4-build-universe",
+        help="archive Gamma pages and build the frozen Stage 4 market universe",
+    )
+    universe.add_argument(
+        "--config",
+        default="cfg/experiments/stage4_pmxt_screening.json",
+        help="path to the frozen Stage 4 screening config",
+    )
+    pmxt_dataset = subparsers.add_parser(
+        "stage4-build-pmxt",
+        help="build restartable causal PMXT snapshots for the Stage 4 universe",
+    )
+    pmxt_dataset.add_argument(
+        "--config",
+        default="cfg/experiments/stage4_pmxt_screening.json",
+        help="path to the frozen Stage 4 screening config",
+    )
+    screening = subparsers.add_parser(
+        "stage4-screen",
+        help="select and test Stage 4 strategies on frozen PMXT snapshots",
+    )
+    screening.add_argument(
+        "--config",
+        default="cfg/experiments/stage4_pmxt_screening.json",
+        help="path to the frozen Stage 4 screening config",
+    )
+    screening.add_argument(
+        "--output-root",
+        default="outputs/screening",
+        help="ignored directory for Stage 4 screening artifacts",
+    )
     return parser
 
 
@@ -159,3 +194,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(run_kacho_backtest(args.config, args.output_root))
     elif args.command == "pmxt-overlap-smoke":
         print(run_pmxt_overlap_smoke(args.config, args.output_root))
+    elif args.command == "stage4-build-universe":
+        print(build_stage4_universe(args.config))
+    elif args.command == "stage4-build-pmxt":
+        print(build_stage4_pmxt_dataset(args.config))
+    elif args.command == "stage4-screen":
+        print(run_stage4_screening(args.config, args.output_root))

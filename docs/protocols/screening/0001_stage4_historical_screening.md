@@ -18,16 +18,21 @@ time в `[2026-04-14T00:00Z, 2026-04-22T00:00Z)`. Gamma pages сохраняют
 Принимаются только exact `(Up, Down)` token mapping и terminal prices `(1,0)`
 или `(0,1)`. Tie/cancel/unresolved исключаются до model fitting с причиной.
 
-Primary book source — PMXT v2. Событие доступно только если
-`timestamp_received <= cutoff`. Для каждого market фиксируются:
+Primary source — PMXT v2. Событие доступно только если
+`timestamp_received <= cutoff`. Для широкого screening фиксируются causal
+`best_bid`/`best_ask` hints для обоих tokens:
 
 - previous state: `end - 120s`;
 - signal book: `end - 60s`;
 - execution book: `signal + 250ms`.
 
-Full snapshot должен существовать к каждому cutoff; deltas до первого
-snapshot не используются. Order side/range/limit определяются signal book,
-а fill — только execution book. Missing data означает excluded/invalid market,
+Две стороны должны существовать к каждому cutoff. Order side/range/limit
+определяются signal top, а fill price — только execution top. PMXT v2 не
+гарантирует отдельный full-book snapshot при рождении каждого рынка, поэтому
+Stage 4 не выдумывает L2 depth: для fixed $10 FAK принимается fill по
+execution best ask при наличии $10 на этом уровне. Это screening approximation,
+которое должно быть отдельно проверено prospective paper trading полным L2;
+Stage 4 не может дать live-ready verdict. Missing top означает invalid market,
 не `no_fill`.
 
 ## Split and models
@@ -52,9 +57,14 @@ validation net PnL для `terminal_lookup` при actual Gamma fee schedule п�
 ## Execution and costs
 
 BUY FAK имеет fixed 10 USDC notional, worst-price limit равен config
-`maximum_ask`, partial fill разрешён, повторный entry запрещён, exit —
+`maximum_ask`, повторный entry запрещён, exit —
 authoritative settlement. Platform fee считается по Gamma per-market rate:
 `shares * rate * price * (1-price)`, rounded to 5 decimals per matched level.
+
+Stage 4 fill полностью на execution best ask является оптимистичной
+верхней оценкой liquidity. Реализуемость не принимается по этому backtest:
+Stage 5 paper trading отклонит кандидата при недостаточной observed L2 depth,
+fill ratio или excess slippage.
 
 Frozen extra-cost scenarios: 0.5¢, 1¢ и 2¢ per filled share. Они включаются и
 в decision net edge, и в realized PnL.

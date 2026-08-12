@@ -61,7 +61,7 @@ def _state_bins(values: torch.Tensor, edges: torch.Tensor) -> torch.Tensor:
 def calculate_platform_fee(
     shares: torch.Tensor,
     prices: torch.Tensor,
-    fee_rate: float,
+    fee_rate: float | torch.Tensor,
     *,
     decimals: int,
 ) -> torch.Tensor:
@@ -73,9 +73,16 @@ def calculate_platform_fee(
 
     if shares.shape != prices.shape or shares.ndim != 3:
         raise ValueError("fee inputs must share shape [market, side, level]")
-    if fee_rate < 0 or decimals < 0:
+    rates = torch.as_tensor(fee_rate, dtype=shares.dtype, device=shares.device)
+    if rates.ndim == 1:
+        if rates.shape[0] != shares.shape[0]:
+            raise ValueError("per-market fee rate must have shape [market]")
+        rates = rates[:, None, None]
+    elif rates.ndim != 0:
+        raise ValueError("fee rate must be scalar or have shape [market]")
+    if bool((rates < 0).any().item()) or decimals < 0:
         raise ValueError("fee rate and decimals must be nonnegative")
-    raw_per_level = shares * fee_rate * prices * (1 - prices)
+    raw_per_level = shares * rates * prices * (1 - prices)
     scale = float(10**decimals)
     return (torch.round(raw_per_level * scale) / scale).sum(dim=2)
 
@@ -136,10 +143,14 @@ def evaluate_batch(
     maximum_ask: float,
     minimum_net_edge: float,
     target_notional_usdc: float,
-    platform_fee_rate: float,
+    platform_fee_rate: float | torch.Tensor,
     platform_fee_round_decimals: int,
     extra_cost_per_share: float,
     require_market_favorite: bool,
+    forced_side: torch.Tensor | None = None,
+    apply_support_gate: bool = True,
+    apply_persistence_gate: bool = True,
+    apply_edge_gate: bool = True,
 ) -> Evaluation:
     states = _state_bins(batch.current_mid_up, model.edges)
     probability_up = model.probability_up[states]
@@ -175,10 +186,18 @@ def evaluate_batch(
     )
     side_edges = probabilities - side_vwap - side_fee_per_share - extra_cost_per_share
     comparable_edges = torch.nan_to_num(side_edges, nan=-torch.inf)
-    side = torch.argmax(comparable_edges, dim=1)
-    tie = torch.isclose(
-        comparable_edges[:, 0], comparable_edges[:, 1], atol=1e-12, rtol=0
-    )
+    if forced_side is None:
+        side = torch.argmax(comparable_edges, dim=1)
+        tie = torch.isclose(
+            comparable_edges[:, 0], comparable_edges[:, 1], atol=1e-12, rtol=0
+        )
+    else:
+        if forced_side.shape != (len(batch),) or forced_side.dtype != torch.int64:
+            raise ValueError("forced side must be int64 with shape [market]")
+        if bool(((forced_side < 0) | (forced_side > 1)).any().item()):
+            raise ValueError("forced side values must be 0 or 1")
+        side = forced_side.to(device=comparable_edges.device)
+        tie = torch.zeros(len(batch), dtype=torch.bool, device=side.device)
     gather = side.unsqueeze(1)
     chosen_probability = probabilities.gather(1, gather).squeeze(1)
     signal_ask = batch.asks.gather(1, gather).squeeze(1)
@@ -196,16 +215,16 @@ def evaluate_batch(
     status = torch.zeros(len(batch), dtype=torch.int64, device=fill_vwap.device)
     eligible = batch.snapshot_valid.clone()
     status[~eligible] = 1
-    failed = eligible & (support < minimum_support)
+    failed = eligible & apply_support_gate & (support < minimum_support)
     status[failed] = 2
     eligible &= ~failed
     failed = eligible & ((signal_ask < minimum_ask) | (signal_ask > maximum_ask))
     status[failed] = 3
     eligible &= ~failed
-    failed = eligible & (persistence < minimum_persistence)
+    failed = eligible & apply_persistence_gate & (persistence < minimum_persistence)
     status[failed] = 4
     eligible &= ~failed
-    failed = eligible & (net_edge < minimum_net_edge)
+    failed = eligible & apply_edge_gate & (net_edge < minimum_net_edge)
     status[failed] = 5
     eligible &= ~failed
     failed = eligible & (~torch.isfinite(chosen_shares) | (chosen_shares <= 0))
