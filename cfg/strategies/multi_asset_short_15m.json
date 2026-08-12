@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "strategy_id": "multi_asset_short_15m",
+  "assets": ["BTC", "ETH", "SOL", "XRP"],
+  "duration": "15m",
+  "minimum_ask": 0.05,
+  "maximum_ask": 0.95,
+  "minimum_net_edge": 0.05,
+  "minimum_persistence": 0.75,
+  "target_notional_usdc": 10.0,
+  "require_market_favorite": false,
+  "order_type": "FAK",
+  "one_entry_per_market": true,
+  "exit_policy": "hold_to_resolution"
+}

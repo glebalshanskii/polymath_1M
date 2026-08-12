@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "strategy_id": "directional_mid_1h",
+  "assets": ["BTC", "ETH"],
+  "duration": "1h",
+  "minimum_ask": 0.64,
+  "maximum_ask": 0.83,
+  "minimum_net_edge": 0.05,
+  "minimum_persistence": 0.80,
+  "target_notional_usdc": 10.0,
+  "require_market_favorite": false,
+  "order_type": "FAK",
+  "one_entry_per_market": true,
+  "exit_policy": "hold_to_resolution"
+}

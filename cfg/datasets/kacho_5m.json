@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "dataset_id": "kachoio/polymarket-5-minute-crypto-up-down-markets",
+  "revision": "42d917dc8e3205dde8ac909792af0cce2d715c9f",
+  "license": "CC0-1.0",
+  "base_url": "https://huggingface.co/datasets/kachoio/polymarket-5-minute-crypto-up-down-markets/resolve",
+  "files": [
+    {"asset": "BTC", "kind": "markets", "path": "btc_markets.parquet", "bytes": 3921352, "sha256": "8e0ed78021bd98d3dba18829266103ebd9b46a77f6ba872a1c7f98be77b506bd"},
+    {"asset": "BTC", "kind": "ticks", "path": "btc_ticks.parquet", "bytes": 182475803, "sha256": "173760b951ac0a2c795e1c3873a506e2fd4372db356dd3515f06582820ff975e"},
+    {"asset": "ETH", "kind": "markets", "path": "eth_markets.parquet", "bytes": 3042915, "sha256": "c933f18b7d3f712c8091e5c10c59811769a741a082408c12eb99312fe92dc67c"},
+    {"asset": "ETH", "kind": "ticks", "path": "eth_ticks.parquet", "bytes": 109211078, "sha256": "381ab9177bbaaa6ef6739793e2bb99e45e1c59792d137c9c2664a9c320f85cc8"},
+    {"asset": "SOL", "kind": "markets", "path": "sol_markets.parquet", "bytes": 3002018, "sha256": "4cd0112dd1a9f12f0d6ad96f9ec5789086f4f6e76ff4ccaaeb454c1c21cf1980"},
+    {"asset": "SOL", "kind": "ticks", "path": "sol_ticks.parquet", "bytes": 92356363, "sha256": "adc6146a858215822d78d7302f92129d440b5d337e89957e34b66cad45e0ed16"},
+    {"asset": "XRP", "kind": "markets", "path": "xrp_markets.parquet", "bytes": 2994280, "sha256": "23fb1f93a5c880664e0ba6ad60cc0c32f2d39457e5a5e3d84e2ab7789b9e0521"},
+    {"asset": "XRP", "kind": "ticks", "path": "xrp_ticks.parquet", "bytes": 87299671, "sha256": "c71dd3da3641b7a3de0745d7729c2e9ba69150a2216185abbdb3265df52a165c"}
+  ]
+}

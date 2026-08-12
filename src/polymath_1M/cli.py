@@ -7,6 +7,9 @@ from .audit.runner import run_profile_audit
 from .audit.storage import build_raw_inventory
 from .collector.replay import replay_run
 from .collector.runner import run_collector
+from .historical.download import download_kacho_dataset
+from .historical.overlap import run_pmxt_overlap_smoke
+from .strategy.backtest import run_kacho_backtest
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -60,6 +63,58 @@ def build_parser() -> argparse.ArgumentParser:
         help="rebuild all L2 books from a collector run and compare its final digest",
     )
     replay.add_argument("--run-dir", required=True, help="existing collector run")
+    download = subparsers.add_parser(
+        "kacho-download",
+        help="download and SHA-256 verify a pinned Kacho historical subset",
+    )
+    download.add_argument(
+        "--config",
+        default="cfg/datasets/kacho_5m.json",
+        help="path to the pinned Kacho dataset config",
+    )
+    download.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory for third-party historical files",
+    )
+    download.add_argument(
+        "--assets",
+        default="BTC",
+        help="comma-separated subset of BTC,ETH,SOL,XRP",
+    )
+    download.add_argument(
+        "--kinds",
+        default="markets,ticks",
+        help="comma-separated subset of markets,ticks",
+    )
+    backtest = subparsers.add_parser(
+        "backtest-kacho",
+        help="run the Stage 3 causal development backtest on pinned Kacho data",
+    )
+    backtest.add_argument(
+        "--config",
+        default="cfg/experiments/stage3_kacho_5m_tiny.json",
+        help="path to the executable backtest config",
+    )
+    backtest.add_argument(
+        "--output-root",
+        default="outputs/backtests",
+        help="ignored directory for backtest artifacts",
+    )
+    overlap = subparsers.add_parser(
+        "pmxt-overlap-smoke",
+        help="compare one exact Kacho tick with PMXT full-L2 replay",
+    )
+    overlap.add_argument(
+        "--config",
+        default="cfg/experiments/stage3_pmxt_overlap_smoke.json",
+        help="path to the pinned overlap smoke config",
+    )
+    overlap.add_argument(
+        "--output-root",
+        default="outputs/overlap",
+        help="ignored directory for overlap artifacts",
+    )
     return parser
 
 
@@ -89,3 +144,18 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(run_dir)
     elif args.command == "collector-replay":
         print(replay_run(args.run_dir))
+    elif args.command == "kacho-download":
+        assets = tuple(value.strip().upper() for value in args.assets.split(","))
+        kinds = tuple(value.strip() for value in args.kinds.split(","))
+        print(
+            download_kacho_dataset(
+                args.config,
+                args.data_root,
+                assets=assets,
+                kinds=kinds,
+            )
+        )
+    elif args.command == "backtest-kacho":
+        print(run_kacho_backtest(args.config, args.output_root))
+    elif args.command == "pmxt-overlap-smoke":
+        print(run_pmxt_overlap_smoke(args.config, args.output_root))

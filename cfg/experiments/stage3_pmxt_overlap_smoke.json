@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "experiment_id": "stage3_pmxt_kacho_overlap_smoke",
+  "pmxt_config": "cfg/datasets/pmxt_v2.json",
+  "kacho_config": "cfg/datasets/kacho_5m.json",
+  "kacho_root": "data/historical",
+  "hour": "2026-04-17T12",
+  "condition_id": "0x21b03dac6af143aded9e87290ca4992130ab6ee4869da5a5550444ecdad7bc6d",
+  "token_up": "3687134936113259814120018428870065475457197148572513997094833851200721803459",
+  "token_down": "72073386720180130976920185896552205256368139693011121023491421314405365561345",
+  "decision_timestamp_ms": 1776427440000,
+  "maximum_top_price_difference": 0.02
+}

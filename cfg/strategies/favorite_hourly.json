@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "strategy_id": "favorite_hourly",
+  "assets": ["BTC", "ETH"],
+  "duration": "1h",
+  "minimum_ask": 0.83,
+  "maximum_ask": 0.97,
+  "minimum_net_edge": 0.03,
+  "minimum_persistence": 0.87,
+  "target_notional_usdc": 10.0,
+  "require_market_favorite": true,
+  "order_type": "FAK",
+  "one_entry_per_market": true,
+  "exit_policy": "hold_to_resolution"
+}

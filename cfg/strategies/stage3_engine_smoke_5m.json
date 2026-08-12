@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "strategy_id": "stage3_engine_smoke_5m_not_candidate",
+  "assets": ["BTC"],
+  "duration": "5m",
+  "minimum_ask": 0.01,
+  "maximum_ask": 0.99,
+  "minimum_net_edge": 0.0,
+  "minimum_persistence": 0.0,
+  "target_notional_usdc": 10.0,
+  "require_market_favorite": false,
+  "order_type": "FAK",
+  "one_entry_per_market": true,
+  "exit_policy": "hold_to_resolution"
+}

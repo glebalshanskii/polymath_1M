@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "dataset_id": "pmxt/polymarket-orderbook-v2",
+  "license": "CC-BY-4.0",
+  "object_url_template": "https://r2v2.pmxt.dev/polymarket_orderbook_{hour}.parquet",
+  "coverage_start_hour": "2026-04-13T19",
+  "audited_through_hour": "2026-08-10T00"
+}
