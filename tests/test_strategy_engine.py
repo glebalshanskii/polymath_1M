@@ -159,6 +159,39 @@ class StrategyEngineTest(unittest.TestCase):
         self.assertAlmostEqual(result.fill_cost.item(), 4.0)
         self.assertAlmostEqual(result.fill_vwap.item(), 0.4)
 
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA device is unavailable")
+    def test_cpu_and_cuda_decisions_match(self) -> None:
+        train = _batch()
+        edges = torch.tensor([0.0, 0.5, 1.000001], dtype=torch.float64)
+        cpu_model = fit_lookup_model(
+            train, edges, terminal_alpha=1.0, transition_alpha=1.0
+        )
+        cuda_train = train.to(torch.device("cuda"), torch.float64)
+        cuda_model = fit_lookup_model(
+            cuda_train,
+            edges.to(device="cuda"),
+            terminal_alpha=1.0,
+            transition_alpha=1.0,
+        )
+        arguments = {
+            "minimum_support": 1,
+            "minimum_persistence": 0.0,
+            "minimum_ask": 0.01,
+            "maximum_ask": 0.99,
+            "minimum_net_edge": 0.0,
+            "target_notional_usdc": 5.0,
+            "platform_fee_rate": 0.07,
+            "platform_fee_round_decimals": 5,
+            "extra_cost_per_share": 0.01,
+            "require_market_favorite": False,
+        }
+        cpu = evaluate_batch(train, cpu_model, **arguments)
+        cuda = evaluate_batch(cuda_train, cuda_model, **arguments)
+        self.assertTrue(torch.equal(cpu.side, cuda.side.cpu()))
+        self.assertTrue(torch.equal(cpu.filled, cuda.filled.cpu()))
+        self.assertTrue(torch.allclose(cpu.net_edge, cuda.net_edge.cpu(), atol=1e-12))
+        self.assertTrue(torch.allclose(cpu.net_pnl, cuda.net_pnl.cpu(), atol=1e-12))
+
 
 if __name__ == "__main__":
     unittest.main()

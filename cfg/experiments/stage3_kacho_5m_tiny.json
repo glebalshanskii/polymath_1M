@@ -7,7 +7,7 @@
   "assets": ["BTC"],
   "max_markets": 1200,
   "seed": 20260813,
-  "device": "cpu",
+  "device": "cuda",
   "dtype": "float64",
   "label_policy": "kacho_inferred_development_only",
   "decision_seconds_before_end": 60,
