@@ -2,9 +2,9 @@
 
 - Обновлено: 2026-08-12
 - Venue: **Polymarket CLOB**
-- Текущий этап: **profile/API smoke audit + collector MVP**
-- Следующий deliverable: воспроизводимая выгрузка трёх профилей и
-  работающий collector Gamma + CLOB L2 + Chainlink RTDS
+- Текущий этап: **Этап 1 завершён; Этап 2 следующий**
+- Следующий deliverable: работающий collector Gamma + CLOB L2 +
+  Chainlink RTDS
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -37,7 +37,7 @@ prospective paper trading.
 
 ## Этап 1. Profile audit
 
-Статус: **next**.
+Статус: **completed 2026-08-12**.
 
 ### Работы
 
@@ -46,24 +46,61 @@ prospective paper trading.
 3. Выгрузить March–April 2026 activity/trades/positions трёх addresses.
 4. Построить inventory/cash-flow ledger со сплитами, merges, redemptions,
    fees, rewards и rebates.
-5. Сверить неоднозначные fills с Polygon events.
+5. Сверить неоднозначные fills с Polygon events — deferred: public result уже
+   классифицирован `not_reconstructable`, а on-chain rebuild не меняет
+   решение о запуске независимого strategy collector.
 6. Проверить все 30-day windows и count definitions против article PnL,
    `Predictions` и biggest wins.
 7. Извлечь behavior constraints: assets, series/durations, entry prices,
    sizes, time-to-expiry, maker/taker mix, trade frequency и rewards.
 
-### Done
+### Результат
 
-- у каждого source address есть identity chain и immutable raw manifest;
-- PnL/count/biggest-win получают `matched`, `different` или
-  `not_reconstructable` с причиной;
-- rewards/rebates и unrealized PnL не смешаны с trading PnL;
-- размеры и частота аккаунтов не копируются в strategy до capacity
+- Реализован streaming collector с recursive time-window pagination,
+  raw archiving, SHA-256 inventory, SQLite deduplication и endpoint-level
+  resume checkpoints.
+- Полностью собран `/activity`: 2,252,619 / 1,438,895 / 8,443,001 rows
+  для Bonereaper / `e1_linked` / `b27_linked`.
+- `/trades` полностью cross-check'нут для первых двух accounts; разница
+  с `TRADE` rows из `/activity` равна -24 и -18. Для B27 полная повторная
+  выгрузка не выполнена: endpoint rate-limited, partial 21,340 rows не
+  используются как полный cross-check.
+- Ни одно из 32 contiguous 30-day UTC windows не совпало одновременно
+  по PnL, `Predictions` и biggest win. Статус всех claims:
+  `not_reconstructable`.
+- `Predictions` по масштабу согласуется с unique markets/positions, но
+  не с trade activity rows: в ближайших окнах их 0.4–6.8 млн.
+- Public activity не содержит полного historical fee/inventory ledger;
+  `/closed-positions` падает на deep pagination. Поэтому расхождение не
+  классифицируется как `different` без Polygon reconciliation.
+- Behavior constraints подтверждают фокус на BTC/ETH, 5m/15m и почти
+  исключительно BUY; B27 действительно multi-asset, но также в основном
+  BTC 5m. Размеры аккаунтов в strategy не копируются.
+- Код/config/tests коммитятся; тяжёлый 53 GB run остаётся в ignored
+  `outputs/profile_audit/20260812T163243Z_murtazin_profiles_2026_03_04/`.
+
+Подробности: [Stage 1 report](reports/murtazin_profile_audit_stage1.md) и
+[ADR-0002](adr/0002-profile-audit-data-contract.md).
+
+### Acceptance evaluation
+
+- **partial:** source links и returned proxy mapping сохранены; B27 on-chain
+  identity chain остаётся unresolved. Все raw bytes имеют SHA-256 inventory,
+  но у 51,192 recovered files раннего collector нет request URL/time metadata;
+- **pass:** PnL/count/biggest-win получили `not_reconstructable` с причиной;
+- **pass:** rewards/rebates и boundary-sensitive cash flow не смешаны с
+  settled-market PnL;
+- **pass:** размеры и частота аккаунтов не копируются в strategy до capacity
   test.
+
+Разрешённые статусы claims:
+
+- `matched_public_ledger`, `different` или
+  `not_reconstructable` с причиной;
 
 ## Этап 2. Collector MVP
 
-Статус: **start in parallel with Stage 1**.
+Статус: **next**.
 
 ### Работы
 

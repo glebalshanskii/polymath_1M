@@ -18,6 +18,7 @@
 | Статус обработки источника | `analyzed` |
 | Статус exact-reproduction claim | `source-insufficient` |
 | Разбор | [`docs/reports/murtazin_strategy_reconstruction.md`](../reports/murtazin_strategy_reconstruction.md) |
+| Profile audit | [`docs/reports/murtazin_profile_audit_stage1.md`](../reports/murtazin_profile_audit_stage1.md) — `not_reconstructable` |
 
 ### Provenance и ограничения
 

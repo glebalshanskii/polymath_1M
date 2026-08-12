@@ -182,15 +182,15 @@ uv run python -m unittest discover -s tests -t . -v
 ```bash
 git worktree list
 git fetch
-git worktree add ../ot-micromr-<topic> -b <type>/<topic> <base-branch>
-cd ../ot-micromr-<topic>
+git worktree add ../polymath_1M-<topic> -b <type>/<topic> <base-branch>
+cd ../polymath_1M-<topic>
 uv sync
 ```
 
 Правила:
 
 - один worktree — одна активная ветка и один task/research thread; не открывай ветку в нескольких worktrees;
-- имена должны отражать задачу: `../ot-micromr-repro-<paper>`, `../ot-micromr-exp-<idea>`, `../ot-micromr-fix-<bug>`;
+- имена должны отражать задачу: `../polymath_1M-repro-<paper>`, `../polymath_1M-exp-<idea>`, `../polymath_1M-fix-<bug>`;
 - перед созданием проверяй `git worktree list`, закрывай stale worktrees;
 - переноси изменения через commit/cherry-pick/merge/patch, а не ручным копированием;
 - особенно аккуратно синхронизируй `pyproject.toml`/`uv.lock`;
@@ -203,9 +203,9 @@ uv sync
 ```bash
 cd <main-worktree>
 git worktree list
-git -C ../ot-micromr-<topic> status --short --branch
-git -C ../ot-micromr-<topic> push -u origin <branch>
-git worktree remove ../ot-micromr-<topic>
+git -C ../polymath_1M-<topic> status --short --branch
+git -C ../polymath_1M-<topic> push -u origin <branch>
+git worktree remove ../polymath_1M-<topic>
 git worktree prune
 ```
 
