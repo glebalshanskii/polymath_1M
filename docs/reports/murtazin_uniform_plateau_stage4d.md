@@ -125,6 +125,56 @@ Return on modeled entry turnover — `168.60 / 2,235.11 = 7.54%`. Это отн�
 target равен 10 USDC на market, но точный peak concurrent capital этим
 top-of-book dataset не восстановлен.
 
+### Settlement-ledger график: сценарий 2,000 USDC
+
+Для ответа на вопрос о траектории капитала выполнен exact replay всех 235
+selected trades. `2,000 USDC` переданы renderer явно как сценарий; это не
+рекомендованный bankroll. На каждом шаге ledger записывает:
+
+- PnL сделки в USDC и долю available capital перед сделкой;
+- cumulative PnL в USDC и долю initial capital;
+- drawdown в USDC и долю предыдущего peak equity;
+- entry outlay в USDC и долю available capital.
+
+| Метрика | Результат |
+|---|---:|
+| Initial / ending scenario capital | 2,000.00 / 2,168.60 USDC |
+| Net PnL / return on initial | +168.60 USDC / +8.43% |
+| Max drawdown | -102.33 USDC / -4.86% от peak equity |
+| Position outlay, min / mean / max | 0.17 / 9.37 / 10.40 USDC |
+| Position share, min / mean / max | 0.008% / 0.453% / 0.516% |
+| Best trade | +12.62 USDC / +0.627% available capital |
+| Worst trade | -10.56 USDC / -0.493% available capital |
+
+Процент позиции иногда выше 0.5% уже из-за platform fee поверх target 10 USDC.
+Это дополнительно показывает, почему фиксированный 0.5% limit нельзя было
+выводить из nominal order size.
+
+Здесь `position outlay = fill cost + platform fee`. Frozen 1¢/share haircut
+уменьшает modeled PnL, но не считается заблокированным cash.
+
+Ledger использует явное упрощение: результат предыдущей сделки реализован и
+её capital освобождён до следующего selected entry. Kacho/Gamma source не
+содержит фактическое время resolution/redemption, поэтому график не измеряет
+concurrent locked capital. Неподтверждённые live percentages отозваны в
+[ADR-0010](../adr/0010-live-capital-limits-need-data.md).
+
+Chart artifacts:
+`outputs/charts/20260813T104936Z_stage4d_stage4c_btc_5m_capital_2000/`.
+
+| Artifact | SHA-256 |
+|---|---|
+| `pnl_drawdown_positions.png` | `9ec9364e914ab12c6ad2f83b0319977fa90bc30f5bca9de7feed16c528c2237c` |
+| `pnl_drawdown_positions.svg` | `bdea473c1a7b88f84f3b5663ba6996c24ceb5ebc532d2af92ce096afc4d4b603` |
+| `ledger.csv` | `9b86badefbad746144df34bc69da057df6ed58e86bea2a983fa886d2291d0df6` |
+| `summary.json` | `0471efbab50f102a1f932ebe28828917e148a0ceff5b770eabde622e97401b1f` |
+| `run_record.json` | `2e8b9a1ea724c033ae0ea5a96e8081225fdbfb2b7e407c2190c6c3beba298776` |
+
+Run выполнен из clean commit
+`e91c72a720504463f46103384d90dc8d81247c44`; exact replay снова совпал с
+proposal по 235 fills и PnL. `holdout_rows_loaded = 0`,
+`holdout_opened = false`.
+
 ## Артефакты и воспроизводимость
 
 Canonical artifacts:

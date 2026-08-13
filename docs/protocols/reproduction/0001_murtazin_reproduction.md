@@ -368,3 +368,17 @@ Kelly number printed in the article.
 Each run stores commit, config, dataset manifest/hash, API/schema versions,
 collection window, seed, device/dtype, runtime, decision/fill/ledger logs and
 summary metrics. Raw books and private credentials remain outside git.
+
+## Amendment 2026-08-13: live capital percentages revoked
+
+Пункты `0.5% bankroll maximum per asset`, `2% total open exposure` и
+`2% daily loss stop` в разделе 10 superseded: они были внесены агентом как
+conservative placeholders, но не следуют из source, backtest или решения
+пользователя. `10 USDC maximum per order` сохраняется только как canary parity
+с historical experiment, а не как доказанная доля bankroll.
+
+До live authorization capital и risk limits определяются из prospective
+распределения concurrent locked capital с фактическими settlement/redemption
+delays, p95-latency drawdown, losing streak и size/slippage curve. Итоговые
+числа требуют отдельного frozen config и явного решения пользователя.
+См. [ADR-0010](../../adr/0010-live-capital-limits-need-data.md).

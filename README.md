@@ -171,3 +171,18 @@ uv run polymath_1M stage4d-calibrate \
 
 Команда ограничивает source scan началом holdout и записывает
 `holdout_rows_loaded = 0`; команды открытия Stage 4d holdout пока нет.
+
+График PnL/drawdown/position и полный per-trade capital ledger строятся с
+явно заданным scenario capital:
+
+```bash
+uv run polymath_1M stage4d-capital-chart \
+  --config cfg/experiments/stage4d_uniform_plateau.json \
+  --proposal <stage4d-run>/proposal.json \
+  --starting-capital 2000
+```
+
+Значение `--starting-capital` обязательно и служит только знаменателем для
+scenario percentages. Проект больше не выводит bankroll из неподтверждённого
+лимита 0.5%; решение зафиксировано в
+[ADR-0010](docs/adr/0010-live-capital-limits-need-data.md).
