@@ -66,6 +66,54 @@ class StrategyEngineTest(unittest.TestCase):
         self.assertEqual(fee.shape, (1, 1))
         self.assertAlmostEqual(fee.item(), 1.75)
 
+    def test_platform_fee_accepts_per_market_rates(self) -> None:
+        shares = torch.full((2, 2, 1), 100.0, dtype=torch.float64)
+        prices = torch.full((2, 2, 1), 0.5, dtype=torch.float64)
+        fee = calculate_platform_fee(
+            shares,
+            prices,
+            torch.tensor([0.07, 0.0], dtype=torch.float64),
+            decimals=5,
+        )
+        self.assertTrue(
+            torch.equal(
+                fee,
+                torch.tensor([[1.75, 1.75], [0.0, 0.0]], dtype=torch.float64),
+            )
+        )
+
+    def test_range_control_can_force_market_favorite_and_disable_model_gates(
+        self,
+    ) -> None:
+        train = _batch()
+        model = fit_lookup_model(
+            train,
+            torch.tensor([0.0, 0.5, 1.000001], dtype=torch.float64),
+            terminal_alpha=1.0,
+            transition_alpha=1.0,
+        )
+        one = train.index(torch.tensor([0], dtype=torch.int64))
+        result = evaluate_batch(
+            one,
+            model,
+            minimum_support=10_000,
+            minimum_persistence=1.0,
+            minimum_ask=0.01,
+            maximum_ask=0.99,
+            minimum_net_edge=1.0,
+            target_notional_usdc=5.0,
+            platform_fee_rate=torch.tensor([0.07], dtype=torch.float64),
+            platform_fee_round_decimals=5,
+            extra_cost_per_share=0.01,
+            require_market_favorite=False,
+            forced_side=torch.argmax(one.current_mid, dim=1),
+            apply_support_gate=False,
+            apply_persistence_gate=False,
+            apply_edge_gate=False,
+        )
+        self.assertTrue(result.filled.item())
+        self.assertEqual(result.side.item(), 1)
+
     def test_fak_walk_fee_and_settlement_pnl_have_analytical_oracle(self) -> None:
         train = _batch()
         edges = torch.tensor([0.0, 0.5, 1.000001], dtype=torch.float64)
@@ -131,6 +179,35 @@ class StrategyEngineTest(unittest.TestCase):
         self.assertTrue(torch.equal(first.filled, second.filled))
         self.assertTrue(torch.equal(first.net_edge, second.net_edge))
         self.assertNotEqual(first.net_pnl.item(), second.net_pnl.item())
+
+    def test_execution_book_does_not_choose_the_order_side(self) -> None:
+        train = _batch()
+        edges = torch.tensor([0.0, 0.5, 1.000001], dtype=torch.float64)
+        model = fit_lookup_model(train, edges, terminal_alpha=1.0, transition_alpha=1.0)
+        observed = train.index(torch.tensor([0], dtype=torch.int64))
+        worse_execution = replace(
+            observed,
+            ask_depth_prices=torch.tensor(
+                [[[0.90, 0.91], [0.02, 0.03]]], dtype=torch.float64
+            ),
+        )
+        arguments = {
+            "minimum_support": 1,
+            "minimum_persistence": 0.0,
+            "minimum_ask": 0.01,
+            "maximum_ask": 0.99,
+            "minimum_net_edge": 0.0,
+            "target_notional_usdc": 5.0,
+            "platform_fee_rate": 0.07,
+            "platform_fee_round_decimals": 5,
+            "extra_cost_per_share": 0.01,
+            "require_market_favorite": False,
+        }
+        first = evaluate_batch(observed, model, **arguments)
+        second = evaluate_batch(worse_execution, model, **arguments)
+        self.assertTrue(torch.equal(first.side, second.side))
+        self.assertTrue(torch.equal(first.net_edge, second.net_edge))
+        self.assertNotEqual(first.fill_vwap.item(), second.fill_vwap.item())
 
     def test_fak_never_walks_beyond_worst_price_limit(self) -> None:
         train = _batch()

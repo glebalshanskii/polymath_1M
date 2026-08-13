@@ -4,7 +4,7 @@ import unittest
 
 import pyarrow as pa
 
-from polymath_1M.historical.pmxt import replay_pmxt_book
+from polymath_1M.historical.pmxt import replay_pmxt_book, replay_pmxt_books_at
 
 
 class PmxtAdapterTest(unittest.TestCase):
@@ -96,6 +96,19 @@ class PmxtAdapterTest(unittest.TestCase):
         self.assertAlmostEqual(snapshot.asks[0].item(), 0.51)
         self.assertAlmostEqual(snapshot.ask_depth_sizes[0, 0].item(), 4.0)
         self.assertAlmostEqual(snapshot.asks[1].item(), 0.52)
+
+        snapshots = replay_pmxt_books_at(
+            table,
+            condition_id=condition,
+            token_ids=("up", "down"),
+            cutoff_timestamps_ms=(950, 1050, 1200),
+        )
+        self.assertIsNone(snapshots[0])
+        self.assertIsNotNone(snapshots[1])
+        self.assertIsNotNone(snapshots[2])
+        assert snapshots[1] is not None and snapshots[2] is not None
+        self.assertAlmostEqual(snapshots[1].asks[0].item(), 0.50)
+        self.assertAlmostEqual(snapshots[2].asks[0].item(), 0.51)
 
 
 if __name__ == "__main__":
