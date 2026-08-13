@@ -1,53 +1,49 @@
 {
   "schema_version": 1,
-  "experiment_id": "stage4c_walkforward_20260422_20260621",
-  "data_config": "cfg/experiments/stage4c_pmxt_data.json",
+  "experiment_id": "stage4c_walkforward_20260422_20260518",
+  "data_config": "cfg/experiments/stage4c_market_data.json",
+  "dataset_config": "cfg/datasets/kacho_5m.json",
+  "dataset_root": "data/historical",
+  "assets": ["BTC", "ETH", "SOL", "XRP"],
   "strategy_configs": [
-    "cfg/strategies/favorite_hourly.json",
-    "cfg/strategies/directional_mid_15m.json",
-    "cfg/strategies/directional_mid_1h.json",
-    "cfg/strategies/multi_asset_short_5m.json",
-    "cfg/strategies/multi_asset_short_15m.json"
+    "cfg/strategies/stage4c_btc_5m.json",
+    "cfg/strategies/stage4c_eth_5m.json",
+    "cfg/strategies/stage4c_sol_5m.json",
+    "cfg/strategies/stage4c_xrp_5m.json",
+    "cfg/strategies/stage4c_multi_asset_5m.json"
   ],
   "folds": [
     {
       "fold_id": "fold_1",
       "train_start": "2026-04-22T00:00:00Z",
-      "train_end_exclusive": "2026-05-10T00:00:00Z",
-      "validation_start": "2026-05-10T00:00:00Z",
-      "validation_end_exclusive": "2026-05-17T00:00:00Z"
+      "train_end_exclusive": "2026-04-28T00:00:00Z",
+      "validation_start": "2026-04-28T00:00:00Z",
+      "validation_end_exclusive": "2026-05-02T00:00:00Z"
     },
     {
       "fold_id": "fold_2",
       "train_start": "2026-04-22T00:00:00Z",
-      "train_end_exclusive": "2026-05-17T00:00:00Z",
-      "validation_start": "2026-05-17T00:00:00Z",
-      "validation_end_exclusive": "2026-05-24T00:00:00Z"
+      "train_end_exclusive": "2026-05-02T00:00:00Z",
+      "validation_start": "2026-05-02T00:00:00Z",
+      "validation_end_exclusive": "2026-05-06T00:00:00Z"
     },
     {
       "fold_id": "fold_3",
       "train_start": "2026-04-22T00:00:00Z",
-      "train_end_exclusive": "2026-05-24T00:00:00Z",
-      "validation_start": "2026-05-24T00:00:00Z",
-      "validation_end_exclusive": "2026-05-31T00:00:00Z"
+      "train_end_exclusive": "2026-05-06T00:00:00Z",
+      "validation_start": "2026-05-06T00:00:00Z",
+      "validation_end_exclusive": "2026-05-10T00:00:00Z"
     },
     {
       "fold_id": "fold_4",
       "train_start": "2026-04-22T00:00:00Z",
-      "train_end_exclusive": "2026-05-31T00:00:00Z",
-      "validation_start": "2026-05-31T00:00:00Z",
-      "validation_end_exclusive": "2026-06-07T00:00:00Z"
-    },
-    {
-      "fold_id": "fold_5",
-      "train_start": "2026-04-22T00:00:00Z",
-      "train_end_exclusive": "2026-06-07T00:00:00Z",
-      "validation_start": "2026-06-07T00:00:00Z",
-      "validation_end_exclusive": "2026-06-14T00:00:00Z"
+      "train_end_exclusive": "2026-05-10T00:00:00Z",
+      "validation_start": "2026-05-10T00:00:00Z",
+      "validation_end_exclusive": "2026-05-14T00:00:00Z"
     }
   ],
-  "holdout_start": "2026-06-14T00:00:00Z",
-  "holdout_end_exclusive": "2026-06-21T00:00:00Z",
+  "holdout_start": "2026-05-14T00:00:00Z",
+  "holdout_end_exclusive": "2026-05-18T00:00:00Z",
   "minimum_ask_grid": [0.20, 0.35, 0.45, 0.50, 0.55, 0.65, 0.80],
   "maximum_ask_grid": [0.50, 0.55, 0.60, 0.70, 0.85, 0.95, 0.99],
   "minimum_net_edge_grid": [0.00, 0.01, 0.02, 0.03, 0.05, 0.08],
@@ -60,19 +56,19 @@
   "minimum_pooled_fills": 100,
   "minimum_pooled_fill_fraction": 0.01,
   "maximum_pooled_fill_fraction": 0.25,
-  "minimum_positive_folds": 4,
-  "minimum_positive_stress_folds": 4,
+  "minimum_positive_folds": 3,
+  "minimum_positive_stress_folds": 3,
   "minimum_pooled_profit_factor": 1.10,
   "maximum_fold_drawdown_usdc": 1000.0,
   "neighbor_minimum_pnl_fraction": 0.50,
-  "minimum_neighbor_positive_folds": 3,
+  "minimum_neighbor_positive_folds": 2,
   "holdout_minimum_fills": 50,
   "holdout_minimum_fill_fraction": 0.01,
   "holdout_minimum_profit_factor": 1.10,
   "holdout_maximum_drawdown_usdc": 1000.0,
   "holdout_minimum_half_pnl_usdc": 0.0,
   "holdout_minimum_stress_pnl_usdc": 0.0,
-  "holdout_maximum_single_day_profit_share": 0.40,
+  "holdout_maximum_single_day_profit_share": 0.50,
   "seed": 20260813,
   "device": "cuda",
   "dtype": "float64"

@@ -27,7 +27,8 @@ from .calibration import (
     _write_json,
 )
 from .config import load_screening_config
-from .run import ScreeningData, _load_rows, _strategy_data
+from .kacho_gamma import load_kacho_gamma_data, select_strategy_data
+from .run import ScreeningData
 from .walkforward_config import FoldSpec, WalkForwardConfig, load_walkforward_config
 
 
@@ -372,17 +373,17 @@ def run_stage4c_calibration(
         raise WalkForwardRunError("frozen CUDA device is unavailable")
     torch.manual_seed(config.seed)
     holdout_start_s = _timestamp(config.holdout_start)
-    rows, dataset_manifest = _load_rows(
-        data_config, row_end_exclusive_s=holdout_start_s
+    all_data, provenance = load_kacho_gamma_data(
+        config,
+        data_config,
+        end_exclusive_s=holdout_start_s,
     )
-    dataset_manifest_path = Path(data_config.data_root) / "pmxt_dataset_manifest.json"
-    dataset_manifest_sha256 = _sha256(dataset_manifest_path)
     edges = torch.tensor(data_config.price_bin_edges, dtype=torch.float64, device=device)
     family_results: list[dict[str, Any]] = []
     all_eligible: list[dict[str, Any]] = []
     for strategy_path in config.strategy_configs:
         strategy = load_strategy_config(strategy_path)
-        data = _strategy_data(rows, strategy, data_config)
+        data = select_strategy_data(all_data, strategy)
         grids: list[ParameterGrid] = []
         metrics: list[GridMetrics] = []
         fold_markets: list[int] = []
@@ -452,7 +453,7 @@ def run_stage4c_calibration(
     selected = all_eligible[0] if all_eligible else None
     if selected is not None:
         strategy = load_strategy_config(selected["strategy_config"])
-        data = _strategy_data(rows, strategy, data_config)
+        data = select_strategy_data(all_data, strategy)
         selected["selected_funnels"] = _selected_funnels(
             data,
             strategy,
@@ -499,9 +500,13 @@ def run_stage4c_calibration(
         "walkforward_config_sha256": config.config_sha256,
         "data_config_sha256": data_config.config_sha256,
         "data_contract_sha256": data_config.data_contract_sha256,
-        "dataset_manifest_sha256": dataset_manifest_sha256,
-        "dataset_market_count": dataset_manifest["market_count"],
-        "development_rows_loaded": len(rows),
+        "dataset_config_sha256": provenance.dataset_config_sha256,
+        "dataset_revision": provenance.dataset_revision,
+        "dataset_manifest_sha256": provenance.dataset_manifest_sha256,
+        "gamma_universe_manifest_sha256": provenance.gamma_universe_manifest_sha256,
+        "gamma_universe_sha256": provenance.gamma_universe_sha256,
+        "development_rows_loaded": provenance.loaded_markets,
+        "development_valid_rows": provenance.valid_markets,
         "holdout_rows_loaded": 0,
         "source_commit": source_commit,
         "families": family_results,
@@ -524,8 +529,15 @@ def run_stage4c_calibration(
                 "walkforward_config_sha256": config.config_sha256,
                 "data_config": config.data_config,
                 "data_config_sha256": data_config.config_sha256,
-                "dataset_manifest": str(dataset_manifest_path),
-                "dataset_manifest_sha256": dataset_manifest_sha256,
+                "dataset_config": config.dataset_config,
+                "dataset_config_sha256": provenance.dataset_config_sha256,
+                "dataset_manifest": provenance.dataset_manifest,
+                "dataset_manifest_sha256": provenance.dataset_manifest_sha256,
+                "gamma_universe_manifest": provenance.gamma_universe_manifest,
+                "gamma_universe_manifest_sha256": (
+                    provenance.gamma_universe_manifest_sha256
+                ),
+                "gamma_universe_sha256": provenance.gamma_universe_sha256,
                 "proposal": str(proposal_path),
                 "proposal_sha256": proposal_sha256,
                 "selected": selected,

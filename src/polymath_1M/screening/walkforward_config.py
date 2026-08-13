@@ -40,6 +40,9 @@ class WalkForwardConfig:
     schema_version: int
     experiment_id: str
     data_config: str
+    dataset_config: str
+    dataset_root: str
+    assets: tuple[str, ...]
     strategy_configs: tuple[str, ...]
     folds: tuple[FoldSpec, ...]
     holdout_start: datetime
@@ -99,8 +102,8 @@ def load_walkforward_config(path: str | Path) -> WalkForwardConfig:
         )
         for item in payload["folds"]
     )
-    if len(folds) != 5 or len({fold.fold_id for fold in folds}) != len(folds):
-        raise WalkForwardConfigError("Stage 4c requires five unique folds")
+    if len(folds) != 4 or len({fold.fold_id for fold in folds}) != len(folds):
+        raise WalkForwardConfigError("Stage 4c requires four unique folds")
     first_start = folds[0].train_start
     for index, fold in enumerate(folds):
         if (
@@ -178,6 +181,9 @@ def load_walkforward_config(path: str | Path) -> WalkForwardConfig:
         raise WalkForwardConfigError("stress cost must exceed selection cost")
     if payload["device"] not in {"cpu", "cuda"} or payload["dtype"] != "float64":
         raise WalkForwardConfigError("Stage 4c requires cpu|cuda and float64")
+    assets = tuple(str(value).upper() for value in payload["assets"])
+    if assets != ("BTC", "ETH", "SOL", "XRP"):
+        raise WalkForwardConfigError("Stage 4c requires the four frozen Kacho assets")
     canonical = json.dumps(
         payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode()
@@ -185,6 +191,7 @@ def load_walkforward_config(path: str | Path) -> WalkForwardConfig:
     normalized.update(
         {
             "strategy_configs": tuple(str(value) for value in payload["strategy_configs"]),
+            "assets": assets,
             "folds": folds,
             "holdout_start": holdout_start,
             "holdout_end_exclusive": holdout_end,

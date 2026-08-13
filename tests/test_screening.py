@@ -50,10 +50,10 @@ class ScreeningTest(unittest.TestCase):
         self.assertEqual(invalid["invalid_reason"], "invalid_causal_top")
 
     def test_loader_derives_expected_hours_from_config_period(self) -> None:
-        config = load_screening_config("cfg/experiments/stage4c_pmxt_data.json")
+        config = load_screening_config("cfg/experiments/stage4c_market_data.json")
         manifest = {
             "data_contract_sha256": config.data_contract_sha256,
-            "hour_count": 1_440,
+            "hour_count": 624,
             "market_count": 100,
             "valid_count": 98,
             "hours": [],
@@ -68,7 +68,7 @@ class ScreeningTest(unittest.TestCase):
         self.assertEqual(
             int((config.period_end_exclusive - config.period_start).total_seconds())
             // 3_600,
-            1_440,
+            624,
         )
 
 

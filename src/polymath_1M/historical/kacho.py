@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pyarrow as pa
@@ -62,6 +63,8 @@ def _load_markets(
     dataset_dir: Path,
     assets: tuple[str, ...],
     max_markets: int,
+    period_start_s: int | None,
+    period_end_exclusive_s: int | None,
 ) -> pa.Table:
     tables: list[pa.Table] = []
     specs = {(item.asset, item.kind): item for item in config.select(assets)}
@@ -75,6 +78,20 @@ def _load_markets(
     combined = pa.concat_tables(tables)
     label_mask = pc.is_in(combined["outcome"], value_set=pa.array(["Up", "Down"]))
     combined = combined.filter(label_mask)
+    if period_start_s is not None:
+        combined = combined.filter(
+            pc.greater_equal(
+                combined["market_start"],
+                pa.scalar(datetime.fromtimestamp(period_start_s, tz=UTC)),
+            )
+        )
+    if period_end_exclusive_s is not None:
+        combined = combined.filter(
+            pc.less(
+                combined["market_start"],
+                pa.scalar(datetime.fromtimestamp(period_end_exclusive_s, tz=UTC)),
+            )
+        )
     order = pc.sort_indices(
         combined,
         sort_keys=[("market_start", "ascending"), ("condition_id", "ascending")],
@@ -157,6 +174,9 @@ def load_kacho_decision_batch(
     decision_seconds_before_end: int,
     transition_horizon_seconds: int,
     label_policy: str,
+    execution_latency_seconds: int = 0,
+    period_start_s: int | None = None,
+    period_end_exclusive_s: int | None = None,
 ) -> DecisionBatch:
     if label_policy != "kacho_inferred_development_only":
         raise KachoDataError(
@@ -165,7 +185,16 @@ def load_kacho_decision_batch(
         )
     normalized_assets = tuple(asset.upper() for asset in assets)
     dataset_dir, _ = validate_kacho_files(config, data_root, assets=normalized_assets)
-    markets = _load_markets(config, dataset_dir, normalized_assets, max_markets)
+    if execution_latency_seconds < 0:
+        raise KachoDataError("execution latency must be nonnegative")
+    markets = _load_markets(
+        config,
+        dataset_dir,
+        normalized_assets,
+        max_markets,
+        period_start_s,
+        period_end_exclusive_s,
+    )
     condition_ids = markets["condition_id"].to_pylist()
     market_end_s = _epoch_seconds(markets["market_end"])
     market_start_s = _epoch_seconds(markets["market_start"])
@@ -174,6 +203,9 @@ def load_kacho_decision_batch(
     ticks = _load_selected_ticks(config, dataset_dir, markets, normalized_assets)
     current = _snapshot_at(ticks, condition_ids, decision_s)
     previous = _snapshot_at(ticks, condition_ids, previous_s)
+    execution = _snapshot_at(
+        ticks, condition_ids, decision_s + execution_latency_seconds
+    )
 
     current_bid_up = _float_tensor(current["bu"])
     current_ask_up = _float_tensor(current["au"])
@@ -186,8 +218,11 @@ def load_kacho_decision_batch(
     bids = torch.stack((current_bid_up, current_bid_down), dim=1)
     asks = torch.stack((current_ask_up, current_ask_down), dim=1)
     current_mid = (bids + asks) / 2
+    execution_asks = torch.stack(
+        (_float_tensor(execution["au"]), _float_tensor(execution["ad"])), dim=1
+    )
     ask_sizes = torch.stack(
-        (_float_tensor(current["sau"]), _float_tensor(current["sad"])), dim=1
+        (_float_tensor(execution["sau"]), _float_tensor(execution["sad"])), dim=1
     )
     finite_book = torch.isfinite(bids).all(dim=1) & torch.isfinite(asks).all(dim=1)
     bounded_book = (
@@ -204,6 +239,9 @@ def load_kacho_decision_batch(
         & torch.isfinite(previous_mid_up)
         & (previous_mid_up >= 0)
         & (previous_mid_up <= 1)
+        & torch.isfinite(execution_asks).all(dim=1)
+        & (execution_asks > 0).all(dim=1)
+        & (execution_asks <= 1).all(dim=1)
     )
     outcomes = torch.tensor(
         [1.0 if value == "Up" else 0.0 for value in markets["outcome"].to_pylist()],
@@ -223,7 +261,7 @@ def load_kacho_decision_batch(
         current_mid=current_mid,
         bids=bids,
         asks=asks,
-        ask_depth_prices=asks.unsqueeze(2),
+        ask_depth_prices=execution_asks.unsqueeze(2),
         ask_depth_sizes=ask_sizes.unsqueeze(2),
         snapshot_valid=snapshot_valid,
         label_source="kacho_inferred_development_only",

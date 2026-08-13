@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "strategy_id": "stage4c_btc_5m",
+  "assets": ["BTC"],
+  "duration": "5m",
+  "minimum_ask": 0.50,
+  "maximum_ask": 0.55,
+  "minimum_net_edge": 0.00,
+  "minimum_persistence": 0.00,
+  "target_notional_usdc": 10.0,
+  "require_market_favorite": false,
+  "order_type": "FAK",
+  "one_entry_per_market": true,
+  "exit_policy": "hold_to_resolution"
+}

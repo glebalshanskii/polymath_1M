@@ -47,7 +47,11 @@ class KachoAdapterTest(unittest.TestCase):
             )
             ticks: list[dict[str, object]] = []
             for condition_id, end in zip(ids, ends, strict=True):
-                for seconds_before_end, up_bid in ((120, 0.39), (60, 0.41)):
+                for seconds_before_end, up_bid in (
+                    (120, 0.39),
+                    (60, 0.41),
+                    (59, 0.42),
+                ):
                     ticks.append(
                         {
                             "condition_id": condition_id,
@@ -111,6 +115,7 @@ class KachoAdapterTest(unittest.TestCase):
                 decision_seconds_before_end=60,
                 transition_horizon_seconds=60,
                 label_policy="kacho_inferred_development_only",
+                execution_latency_seconds=1,
             )
 
         self.assertEqual(len(batch), 5)
@@ -118,6 +123,7 @@ class KachoAdapterTest(unittest.TestCase):
         self.assertEqual(batch.current_mid_up.tolist(), [0.42] * 5)
         self.assertEqual(batch.previous_mid_up.tolist(), [0.4] * 5)
         self.assertEqual(batch.ask_depth_prices.shape, (5, 2, 1))
+        self.assertEqual(batch.ask_depth_prices[:, 0, 0].tolist(), [0.44] * 5)
         self.assertEqual(batch.outcome_up.tolist(), [1.0, 0.0, 1.0, 0.0, 1.0])
 
 

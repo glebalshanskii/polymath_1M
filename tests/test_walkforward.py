@@ -40,20 +40,20 @@ def _metrics(fills: list[int], pnl: list[float], stress: list[float]) -> list[Gr
 class WalkForwardTest(unittest.TestCase):
     def test_frozen_config_has_contiguous_folds_and_new_holdout(self) -> None:
         config = load_walkforward_config("cfg/experiments/stage4c_walkforward.json")
-        self.assertEqual(len(config.folds), 5)
-        self.assertEqual(config.holdout_start.isoformat(), "2026-06-14T00:00:00+00:00")
-        self.assertEqual(config.holdout_end_exclusive.isoformat(), "2026-06-21T00:00:00+00:00")
+        self.assertEqual(len(config.folds), 4)
+        self.assertEqual(config.holdout_start.isoformat(), "2026-05-14T00:00:00+00:00")
+        self.assertEqual(config.holdout_end_exclusive.isoformat(), "2026-05-18T00:00:00+00:00")
         self.assertGreater(config.folds[0].train_start.timestamp(), 1_774_310_400)
 
     def test_pool_preserves_fold_metrics(self) -> None:
         pooled = _pool(
-            _metrics([20] * 5, [5.0, 4.0, 3.0, 2.0, -1.0], [2.0] * 5),
-            [1000] * 5,
+            _metrics([25] * 4, [5.0, 4.0, 3.0, -1.0], [2.0] * 4),
+            [1000] * 4,
         )
         self.assertEqual(pooled.pooled_fill_count.tolist(), [100])
-        self.assertEqual(pooled.positive_folds.tolist(), [4])
+        self.assertEqual(pooled.positive_folds.tolist(), [3])
         torch.testing.assert_close(
-            pooled.pooled_net_pnl, torch.tensor([13.0], dtype=torch.float64)
+            pooled.pooled_net_pnl, torch.tensor([11.0], dtype=torch.float64)
         )
 
     def test_neighbor_fold_count_uses_existing_neighbors(self) -> None:
@@ -81,18 +81,18 @@ class WalkForwardTest(unittest.TestCase):
         )
         self.assertEqual(_neighbor_positive_folds(grid, fold_pnl).tolist(), [2, 3, 2])
 
-    def test_eligibility_requires_four_profitable_folds_and_stress(self) -> None:
+    def test_eligibility_requires_three_profitable_folds_and_stress(self) -> None:
         config = load_walkforward_config("cfg/experiments/stage4c_walkforward.json")
         pooled = _pool(
-            _metrics([20] * 5, [5.0, 4.0, 3.0, 2.0, -1.0], [2.0] * 5),
-            [1000] * 5,
+            _metrics([25] * 4, [5.0, 4.0, 3.0, -1.0], [2.0] * 4),
+            [1000] * 4,
         )
         eligible = _eligible(
             pooled,
             neighbor_floor=torch.tensor([10.0], dtype=torch.float64),
-            neighbor_positive_folds=torch.tensor([4]),
+            neighbor_positive_folds=torch.tensor([3]),
             config=config,
-            fold_markets=[1000] * 5,
+            fold_markets=[1000] * 4,
         )
         self.assertEqual(eligible.tolist(), [True])
 

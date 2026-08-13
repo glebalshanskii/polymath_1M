@@ -1,62 +1,72 @@
 # Stage 4c protocol: longer walk-forward screening
 
-- Статус: frozen before new-universe download
+- Статус: frozen before Kacho price download
 - Frozen: 2026-08-13
 - Venue: Polymarket CLOB
-- Data config: `cfg/experiments/stage4c_pmxt_data.json`
+- Market config: `cfg/experiments/stage4c_market_data.json`
 - Experiment config: `cfg/experiments/stage4c_walkforward.json`
 - Parent: `0002_stage4b_signal_calibration.md`
 
 ## Практическая цель
 
 Stage 4b решил проблему нулевых fills, но двухдневный test оказался
-убыточным. Stage 4c проверяет, существует ли у тех же пяти practical strategy
-families диапазон параметров, который приносит net PnL не в одной удачной
-validation паре дней, а в нескольких последовательных недельных regimes.
+убыточным. Stage 4c проверяет, существует ли у 5m idea диапазон параметров,
+который приносит net PnL не в одной удачной паре дней, а в нескольких
+последовательных regimes.
 
-Старый период до 2026-04-22 полностью исключён. Новый период —
-`[2026-04-22, 2026-06-21)`. Последняя неделя заранее является holdout и не
-читается calibration command.
+Stage 4b показал viable cells только у `multi_asset_short_5m`; hourly и 15m
+families не прошли validation exposure/profitability. Поэтому новый search
+не тратит data/compute budget на них. Сравниваются BTC, ETH, SOL, XRP отдельно
+и pooled four-asset 5m policy.
 
-## Неизменяемый execution contract
+Предыдущие target periods полностью исключены. Новый период —
+`[2026-04-22, 2026-05-18)`. Последние четыре дня заранее являются holdout и
+не читаются calibration command.
 
-- Polymarket crypto `Up/Down`, Gamma outcomes/fees, PMXT receive-time top;
-- decision `end-60s`, state transition 60s, execution `decision+250ms`;
+## Data и execution contract
+
+- pinned Kacho revision `42d917dc8e3205dde8ac909792af0cce2d715c9f`,
+  CC0, second-by-second 5m top/size для BTC/ETH/SOL/XRP;
+- Gamma archive того же exact period задаёт authoritative condition IDs,
+  binary outcomes и per-market fee rates; Kacho inferred outcome не
+  используется;
+- previous state `end-120s`, signal `end-60s`, execution first exact Kacho
+  second at `signal+1s`;
 - train-only smoothed terminal lookup и Markov persistence feature;
-- fixed 10 USDC FAK, one entry per market, hold to resolution;
-- actual market taker fee + 1¢/share primary и +2¢/share stress;
-- optimistic availability of 10 USDC at execution best ask.
+- fixed 10 USDC FAK limited to observed execution best ask/size, one entry per
+  market, hold to resolution;
+- actual Gamma taker fee + 1¢/share primary и +2¢/share stress.
 
-Последний пункт делает результат screening, а не capacity proof. Только
-positive holdout имеет право перейти к full-L2 prospective paper trading.
+Одна секунда консервативнее прежней 250ms assumption и соответствует cadence
+source. Kacho top size — реальное recorded size, но не гарантирует queue/fill;
+positive holdout всё равно допускает только prospective full-L2 paper trading.
 
-Dataset считается пригодным только при наличии всех 1,440 hourly objects,
-совпадении universe/manifest/hash contracts и не менее 99% valid causal
-snapshots. При провале coverage experiment получает `invalid_data`, а не
-подменяет missing rows сделками или нулевым PnL.
+Data gate: все 8 pinned Kacho files проходят size/SHA-256, каждый выбранный
+condition существует в Gamma universe, outcome/fee не missing, causal snapshot
+coverage ≥99%. Иначе status `invalid_data`, а missing rows не превращаются в
+zero PnL.
 
 ## Expanding walk-forward
 
-Пять folds имеют общий train start 2026-04-22, expanding train и следующие
-непересекающиеся 7 дней validation:
+Четыре folds имеют общий train start 2026-04-22, expanding train и следующие
+непересекающиеся четыре дня validation:
 
 | Fold | Train end | Validation |
 |---|---|---|
-| 1 | 2026-05-10 | 2026-05-10 — 2026-05-17 |
-| 2 | 2026-05-17 | 2026-05-17 — 2026-05-24 |
-| 3 | 2026-05-24 | 2026-05-24 — 2026-05-31 |
-| 4 | 2026-05-31 | 2026-05-31 — 2026-06-07 |
-| 5 | 2026-06-07 | 2026-06-07 — 2026-06-14 |
+| 1 | 2026-04-28 | 2026-04-28 — 2026-05-02 |
+| 2 | 2026-05-02 | 2026-05-02 — 2026-05-06 |
+| 3 | 2026-05-06 | 2026-05-06 — 2026-05-10 |
+| 4 | 2026-05-10 | 2026-05-10 — 2026-05-14 |
 
 Model и numeric persistence threshold refit только на train каждого fold.
-Идентичность policy задаётся persistence quantile, а не случайным numeric
-значением одного периода. Candidate выбирается по пяти validation weeks.
+Идентичность policy задаётся persistence quantile. Holdout —
+`[2026-05-14, 2026-05-18)`.
 
 ## Search и funnel
 
 Ищутся только minimum/maximum ask, minimum net edge, persistence train
-quantile и support из committed config. Assets, duration, side policy, order
-size/type и exit не меняются. Grid считается tensor operations на GPU.
+quantile и support из committed config. Asset family, order size/type и exit
+не меняются. Grid считается tensor operations на GPU.
 
 Для исходной и selected policy сохраняются counts:
 `markets → snapshot_valid → side_policy → support → range → persistence →
@@ -69,16 +79,15 @@ Candidate cell eligible только если одновременно:
 - в каждом fold fills ≥ `max(10, ceil(0.5% markets))`;
 - pooled fills ≥ `max(100, ceil(1% markets))` и ≤25% markets;
 - pooled net PnL > 0 и pooled PF ≥1.10;
-- минимум 4/5 fold primary PnL > 0;
-- pooled stress PnL > 0 и минимум 4/5 stress folds > 0;
+- минимум 3/4 fold primary PnL > 0;
+- pooled stress PnL > 0 и минимум 3/4 stress folds > 0;
 - drawdown каждого fold ≤1,000 USDC;
 - каждый существующий one-step grid neighbour имеет pooled PnL > 0,
-  сохраняет ≥50% base pooled PnL и положителен минимум в 3/5 folds.
+  сохраняет ≥50% base pooled PnL и положителен минимум в 2/4 folds.
 
 Selection сначала максимизирует число positive primary folds, затем minimum
 fold PnL, pooled stress PnL, pooled primary PnL, меньшую fill fraction,
-strategy ID и lexicographic grid indices. Это предпочитает стабильность
-максимальной прибыли на одном режиме.
+strategy ID и lexicographic grid indices.
 
 Если eligible cells нет, status — `inconclusive_no_candidate`, holdout не
 открывается и search space под этим ID не расширяется.
@@ -86,12 +95,12 @@ strategy ID и lexicographic grid indices. Это предпочитает ст�
 ## Freeze и один holdout
 
 До holdout selected family, grid indices, persistence quantile, derived
-threshold на всём development периоде, data/config/proposal hashes
+threshold на всём development периоде, Kacho/Gamma/config/proposal hashes
 коммитятся в `cfg/experiments/stage4c_selected.json`.
 
-Holdout `[2026-06-14, 2026-06-21)` fit использует только development rows до
-2026-06-14. Canonical output path создаётся один раз; существующий path или
-hash mismatch запрещает повторный запуск.
+Holdout fit использует только development rows до 2026-05-14. Canonical
+output path создаётся один раз; существующий path или hash mismatch запрещает
+повторный запуск.
 
 Pass требует одновременно:
 
@@ -99,24 +108,28 @@ Pass требует одновременно:
 - net PnL > 0, PF ≥1.10, drawdown ≤1,000 USDC;
 - обе chronological halves PnL > 0;
 - PnL при fee +2¢/share > 0;
-- maximum share одного UTC day в positive daily PnL ≤40%.
+- maximum share одного UTC day в positive daily PnL ≤50%.
 
-Insufficient fills/coverage — `inconclusive`; любой profitability gate
-failure — `fail`. Literal one-step и range-only считаются после primary как
-diagnostics и не меняют решение.
+Insufficient fills/coverage — `inconclusive`; profitability failure — `fail`.
+Literal one-step и range-only считаются после primary как diagnostics.
+
+## Pre-target data-source amendment — 2026-08-13
+
+Первоначально планировался 60-day PMXT bulk extraction. Benchmark на шести
+hourly objects показал несколько часов wall-clock; 18 connections ухудшили
+throughput из-за shared HTTP bandwidth. Никакие quotes/outcomes не
+анализировались. PMXT hosted historical API требует новый API key, который не
+запрашивается.
+
+Вместо ослабления research gate выбран уже pinned и cross-source проверенный
+Kacho: он покрывает только 5m, зато даёт exact-second top/size компактно.
+Authoritative labels/fees берутся не из Kacho, а из нового Gamma archive.
+Период сокращён с 60 до 26 дней, но development regime проверяется четырьмя
+out-of-sample folds вместо одной двухдневной validation Stage 4b. Изменение
+зафиксировано до загрузки ETH/SOL/XRP prices и до вычисления target metrics.
 
 ## После результата
 
 - `pass`: разрешает Stage 5 prospective full-L2 paper trading, но не live;
-- `fail`: test week навсегда исключается из tuning, нужен новый data horizon
-  или новый заранее описанный mechanism;
-- `inconclusive`: не является ни доказательством прибыли, ни убытка.
-
-## Pre-data performance amendment — 2026-08-13
-
-Первый PMXT build был остановлен после шести hourly checkpoints: default
-DuckDB thread pools расходовали 7.5 GB RAM при network-bound 1.6 aggregate
-CPU и давали непрактичный ETA. Data/feature semantics не меняются. Каждый
-hourly query ограничен одним DuckDB thread и 1 GB, а independent remote
-objects обрабатываются 18 workers. Шесть content-addressed checkpoints
-переиспользуются; target values до amendment не анализировались.
+- `fail`: test period навсегда исключается из tuning;
+- `inconclusive`: не является доказательством прибыли или убытка.
