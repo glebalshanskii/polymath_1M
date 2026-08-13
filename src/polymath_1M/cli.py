@@ -10,6 +10,7 @@ from .collector.runner import run_collector
 from .historical.download import download_kacho_dataset
 from .historical.overlap import run_pmxt_overlap_smoke
 from .screening.calibration import run_stage4b_calibration
+from .screening.capital_chart import run_stage4d_capital_chart
 from .screening.holdout import run_stage4b_test
 from .screening.openmarket import run_openmarket_sanity
 from .screening.plateau import run_stage4d_calibration
@@ -220,6 +221,31 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/calibration",
         help="ignored directory for Stage 4d development artifacts",
     )
+    capital_chart = subparsers.add_parser(
+        "stage4d-capital-chart",
+        help="render the selected Stage 4d development capital ledger",
+    )
+    capital_chart.add_argument(
+        "--config",
+        default="cfg/experiments/stage4d_uniform_plateau.json",
+        help="path to the frozen Stage 4d plateau config",
+    )
+    capital_chart.add_argument(
+        "--proposal",
+        required=True,
+        help="path to the selected Stage 4d development proposal",
+    )
+    capital_chart.add_argument(
+        "--starting-capital",
+        type=float,
+        required=True,
+        help="explicit scenario capital in USDC; no project default is assumed",
+    )
+    capital_chart.add_argument(
+        "--output-root",
+        default="outputs/charts",
+        help="ignored directory for chart, ledger and summary artifacts",
+    )
     return parser
 
 
@@ -280,3 +306,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(run_stage4c_calibration(args.config, args.output_root))
     elif args.command == "stage4d-calibrate":
         print(run_stage4d_calibration(args.config, args.output_root))
+    elif args.command == "stage4d-capital-chart":
+        print(
+            run_stage4d_capital_chart(
+                args.config,
+                args.proposal,
+                starting_capital=args.starting_capital,
+                output_root=args.output_root,
+            )
+        )
