@@ -204,7 +204,7 @@ EXPECTED_CONFIG_FIELDS = {
 
 
 def _utc(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    parsed = datetime.fromisoformat(value)
     if parsed.tzinfo is None:
         raise PracticalChainError("Stage 4h timestamps must include a timezone")
     return parsed.astimezone(UTC)
@@ -260,8 +260,7 @@ def load_practical_chain_config(path: str | Path) -> PracticalChainConfig:
         or payload["duration"] != "5m"
         or seconds != (120, 105, 90, 75, 60, 45, 30, 15)
         or int(payload["execution_latency_ms"]) != 1_000
-        or edges
-        != (0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.000001)
+        or edges != (0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.000001)
         or int(payload["minimum_transition_support"]) != 100
         or int(payload["minimum_terminal_support"]) != 100
         or float(payload["minimum_net_edge"]) != 0.02
@@ -321,9 +320,7 @@ def load_practical_chain_config(path: str | Path) -> PracticalChainConfig:
 
 
 def _hour_key(timestamp_ms: int) -> str:
-    return datetime.fromtimestamp(timestamp_ms / 1_000, tz=UTC).strftime(
-        "%Y-%m-%dT%H"
-    )
+    return datetime.fromtimestamp(timestamp_ms / 1_000, tz=UTC).strftime("%Y-%m-%dT%H")
 
 
 def _load_development_universe(config: PracticalChainConfig) -> list[dict[str, Any]]:
@@ -425,9 +422,7 @@ SELECT * FROM latest ORDER BY condition_id, checkpoint_index, outcome
 """
 
 
-def _top_rows(
-    table: pa.Table, market: dict[str, Any]
-) -> tuple[dict[str, Any], str]:
+def _top_rows(table: pa.Table, market: dict[str, Any]) -> tuple[dict[str, Any], str]:
     by_key = {
         (str(row["outcome"]), int(row["checkpoint_index"])): row
         for row in table.to_pylist()
@@ -452,17 +447,13 @@ def _top_rows(
         valid[checkpoint] = all(
             value is not None and math.isfinite(value) for value in values
         ) and all(
-            0 <= float(bids[checkpoint][side])
-            < float(asks[checkpoint][side])
-            <= 1
+            0 <= float(bids[checkpoint][side]) < float(asks[checkpoint][side]) <= 1
             for side in range(2)
         )
     if not all(valid):
         invalid_reason = "missing_or_invalid_two_sided_top"
     mid_up = [
-        (float(bids[index][0]) + float(asks[index][0])) / 2
-        if valid[index]
-        else None
+        (float(bids[index][0]) + float(asks[index][0])) / 2 if valid[index] else None
         for index in range(8)
     ]
     return (
@@ -562,7 +553,9 @@ def build_practical_chain_cache(config_path: str | Path) -> Path:
                 hour, rows = next(iterator)
             except StopIteration:
                 break
-            futures[executor.submit(_build_top_hour, hour, rows, config, output_dir)] = hour
+            futures[
+                executor.submit(_build_top_hour, hour, rows, config, output_dir)
+            ] = hour
         completed = 0
         while futures:
             future = next(as_completed(futures))
@@ -578,7 +571,9 @@ def build_practical_chain_cache(config_path: str | Path) -> Path:
                 hour, rows = next(iterator)
             except StopIteration:
                 continue
-            futures[executor.submit(_build_top_hour, hour, rows, config, output_dir)] = hour
+            futures[
+                executor.submit(_build_top_hour, hour, rows, config, output_dir)
+            ] = hour
     inventory.sort(key=lambda item: item["hour"])
     if sum(int(item["market_count"]) for item in inventory) != len(markets):
         raise PracticalChainError("Stage 4h top cache lost markets")
@@ -650,7 +645,10 @@ def load_practical_chain_dataset(config: PracticalChainConfig) -> ChainDataset:
             dtype=torch.float64,
         )
         receive[index] = torch.tensor(
-            [[-1 if value is None else value for value in pair] for pair in row["receive_timestamp_ms"]],
+            [
+                [-1 if value is None else value for value in pair]
+                for pair in row["receive_timestamp_ms"]
+            ],
             dtype=torch.int64,
         )
         valid[index] = torch.tensor(row["valid"], dtype=torch.bool)
@@ -667,9 +665,7 @@ def load_practical_chain_dataset(config: PracticalChainConfig) -> ChainDataset:
         outcome_up=torch.tensor(
             [row["outcome_up"] for row in rows], dtype=torch.float64
         ),
-        fee_rate=torch.tensor(
-            [row["fee_rate"] for row in rows], dtype=torch.float64
-        ),
+        fee_rate=torch.tensor([row["fee_rate"] for row in rows], dtype=torch.float64),
         fee_exponent=torch.tensor(
             [row["fee_exponent"] for row in rows], dtype=torch.float64
         ),
@@ -706,9 +702,9 @@ def fit_raw_chain(
     pair_valid = valid[:, :-1] & valid[:, 1:]
     checkpoint = torch.arange(7, device=mid_up.device).expand(mid_up.shape[0], -1)
     encoded = checkpoint * 64 + states[:, :-1] * 8 + states[:, 1:]
-    transition_counts = torch.bincount(
-        encoded[pair_valid], minlength=7 * 64
-    ).reshape(7, 8, 8)
+    transition_counts = torch.bincount(encoded[pair_valid], minlength=7 * 64).reshape(
+        7, 8, 8
+    )
     transition_support = transition_counts.sum(dim=2)
     transition_matrix = torch.where(
         transition_support.unsqueeze(2) > 0,
@@ -749,12 +745,17 @@ def fit_raw_chain(
     available = torch.stack(tuple(reversed(available_rows)), dim=0)
     value_up = torch.stack(tuple(reversed(value_rows)), dim=0)
     if bool(
-        ((transition_support > 0) & ~torch.isclose(
-            transition_matrix.sum(dim=2),
-            torch.ones_like(transition_support, dtype=torch.float64),
-            atol=1e-12,
-            rtol=0,
-        )).any().item()
+        (
+            (transition_support > 0)
+            & ~torch.isclose(
+                transition_matrix.sum(dim=2),
+                torch.ones_like(transition_support, dtype=torch.float64),
+                atol=1e-12,
+                rtol=0,
+            )
+        )
+        .any()
+        .item()
     ):
         raise PracticalChainError("raw transition rows do not sum to one")
     if bool(((value_up[available] < 0) | (value_up[available] > 1)).any().item()):
@@ -780,11 +781,17 @@ def evaluate_signals(
     *,
     minimum_net_edge: float,
 ) -> SignalEvaluation:
-    states = torch.bucketize(dataset.mid_up, model.edges[1:-1] if model else torch.tensor(
-        (0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875),
-        dtype=torch.float64,
-        device=dataset.mid_up.device,
-    ), right=False)
+    states = torch.bucketize(
+        dataset.mid_up,
+        model.edges[1:-1]
+        if model
+        else torch.tensor(
+            (0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875),
+            dtype=torch.float64,
+            device=dataset.mid_up.device,
+        ),
+        right=False,
+    )
     if model is None:
         probability_up = dataset.mid_up
         forecast_available = dataset.valid & torch.isfinite(probability_up)
@@ -820,9 +827,7 @@ def evaluate_signals(
     )
     any_signal = signal.any(dim=1)
     first = torch.argmax(signal.to(torch.int64), dim=1)
-    order_checkpoint = torch.where(
-        any_signal, first, torch.full_like(first, -1)
-    )
+    order_checkpoint = torch.where(any_signal, first, torch.full_like(first, -1))
     return SignalEvaluation(
         states=states,
         probability_up=probability_up,
@@ -844,7 +849,8 @@ def _folds(config: PracticalChainConfig) -> tuple[Fold, ...]:
         Fold(
             fold_id=f"fold_{index}",
             train_start_ms=start,
-            train_end_ms=first_validation + index * config.validation_fold_days * day_ms,
+            train_end_ms=first_validation
+            + index * config.validation_fold_days * day_ms,
             validation_start_ms=first_validation
             + index * config.validation_fold_days * day_ms,
             validation_end_ms=first_validation
@@ -874,8 +880,10 @@ def _limit_price(
     high = probability.clamp(0, 1)
     for _ in range(64):
         middle = (low + high) / 2
-        edge = probability - middle - fee_rate * torch.pow(
-            middle * (1 - middle), fee_exponent
+        edge = (
+            probability
+            - middle
+            - fee_rate * torch.pow(middle * (1 - middle), fee_exponent)
         )
         low = torch.where(edge >= minimum_edge, middle, low)
         high = torch.where(edge >= minimum_edge, high, middle)
@@ -896,7 +904,9 @@ def _orders(
         selected = int(order_checkpoint[market_index].item())
         for checkpoint, seconds in enumerate(config.state_seconds_before_end):
             side = int(evaluation.side[market_index, checkpoint].item())
-            decision_ms = int(validation.market_end_ms[market_index].item()) - seconds * 1_000
+            decision_ms = (
+                int(validation.market_end_ms[market_index].item()) - seconds * 1_000
+            )
             decisions.append(
                 {
                     "variant": variant,
@@ -911,7 +921,9 @@ def _orders(
                     "decision_utc": datetime.fromtimestamp(
                         decision_ms / 1_000, tz=UTC
                     ).isoformat(),
-                    "snapshot_valid": bool(validation.valid[market_index, checkpoint].item()),
+                    "snapshot_valid": bool(
+                        validation.valid[market_index, checkpoint].item()
+                    ),
                     "state": int(evaluation.states[market_index, checkpoint].item()),
                     "forecast_available": bool(
                         evaluation.forecast_available[market_index, checkpoint].item()
@@ -1169,9 +1181,7 @@ def apply_execution(
     config: PracticalChainConfig,
     device: torch.device,
 ) -> list[dict[str, Any]]:
-    maximum_levels = max(
-        (len(value[0]) for value in depths.values()), default=0
-    )
+    maximum_levels = max((len(value[0]) for value in depths.values()), default=0)
     maximum_levels = max(maximum_levels, 1)
     count = len(orders)
     prices = torch.full(
@@ -1244,14 +1254,14 @@ def apply_execution(
                 - config.minimum_net_edge
             )
             < -1e-10
-        ).any().item()
+        )
+        .any()
+        .item()
     ):
         raise PracticalChainError("execution used a level below frozen net edge")
     settlement = torch.tensor(
         [
-            order["outcome_up"]
-            if order["side"] == "Up"
-            else 1 - order["outcome_up"]
+            order["outcome_up"] if order["side"] == "Up" else 1 - order["outcome_up"]
             for order in orders
         ],
         dtype=torch.float64,
@@ -1326,7 +1336,9 @@ def _metrics(
         "fills": int(filled.sum().item()),
         "net_pnl_usdc": float(filled_pnl.sum().item()),
         "stress_net_pnl_usdc": float(filled_stress.sum().item()),
-        "cash_turnover_usdc": sum(row["fill_cost"] + row["platform_fee"] for row in orders),
+        "cash_turnover_usdc": sum(
+            row["fill_cost"] + row["platform_fee"] for row in orders
+        ),
         "return_on_turnover": float(filled_pnl.sum().item())
         / sum(row["fill_cost"] + row["platform_fee"] for row in orders)
         if any(row["filled"] for row in orders)
@@ -1349,8 +1361,12 @@ def _forecast_metrics(
     rows = [row for row in decisions if row["forecast_available"]]
     if not rows:
         return {"brier_score": None, "calibration_bias": None, "observations": 0}
-    forecast = torch.tensor([row["probability_up"] for row in rows], dtype=torch.float64)
-    labels = torch.tensor([outcomes[row["condition_id"]] for row in rows], dtype=torch.float64)
+    forecast = torch.tensor(
+        [row["probability_up"] for row in rows], dtype=torch.float64
+    )
+    labels = torch.tensor(
+        [outcomes[row["condition_id"]] for row in rows], dtype=torch.float64
+    )
     error = forecast - labels
     return {
         "brier_score": float(error.square().mean().item()),
@@ -1359,7 +1375,9 @@ def _forecast_metrics(
     }
 
 
-def _model_record(fold: Fold, model: RawChainModel, train_markets: int) -> dict[str, Any]:
+def _model_record(
+    fold: Fold, model: RawChainModel, train_markets: int
+) -> dict[str, Any]:
     return {
         "fold_id": fold.fold_id,
         "train_markets": train_markets,
@@ -1374,7 +1392,9 @@ def _model_record(fold: Fold, model: RawChainModel, train_markets: int) -> dict[
     }
 
 
-def _render_chart(path: Path, variant: str, orders: list[dict[str, Any]], summary: dict[str, Any]) -> None:
+def _render_chart(
+    path: Path, variant: str, orders: list[dict[str, Any]], summary: dict[str, Any]
+) -> None:
     ordered = sorted(orders, key=lambda row: (row["decision_ms"], row["condition_id"]))
     times = [row["decision_utc"] for row in ordered]
     pnl = torch.tensor([row["primary_pnl"] for row in ordered], dtype=torch.float64)
@@ -1478,7 +1498,10 @@ def _render_models(path: Path, models: list[dict[str, Any]]) -> None:
         subplot_titles=tuple(
             title
             for record in models
-            for title in (f"{record['fold_id']} A(-120)", f"{record['fold_id']} p(UP|-15)")
+            for title in (
+                f"{record['fold_id']} A(-120)",
+                f"{record['fold_id']} p(UP|-15)",
+            )
         ),
     )
     for row_index, record in enumerate(models, start=1):
@@ -1532,7 +1555,9 @@ def run_stage4h_practical_chain(
     all_decisions: list[dict[str, Any]] = []
     all_orders: list[dict[str, Any]] = []
     model_records: list[dict[str, Any]] = []
-    fold_context: dict[tuple[str, str], tuple[list[dict[str, Any]], list[dict[str, Any]]]] = {}
+    fold_context: dict[
+        tuple[str, str], tuple[list[dict[str, Any]], list[dict[str, Any]]]
+    ] = {}
     outcomes: dict[str, float] = {}
     for fold in _folds(config):
         train_indices = _indices(dataset, fold.train_start_ms, fold.train_end_ms)
@@ -1567,17 +1592,14 @@ def run_stage4h_practical_chain(
             evaluation = evaluate_signals(
                 validation, fitted, minimum_net_edge=config.minimum_net_edge
             )
-            decisions, orders = _orders(
-                fold, variant, validation, evaluation, config
-            )
+            decisions, orders = _orders(fold, variant, validation, evaluation, config)
             all_decisions.extend(decisions)
             all_orders.extend(orders)
             fold_context[(variant, fold.fold_id)] = (decisions, orders)
     depths = _fetch_execution_depths(all_orders, config)
     executed = apply_execution(all_orders, depths, config, device)
     execution_by_key = {
-        (row["variant"], row["fold_id"], row["condition_id"]): row
-        for row in executed
+        (row["variant"], row["fold_id"], row["condition_id"]): row for row in executed
     }
     results: dict[str, Any] = {}
     fold_metrics: list[dict[str, Any]] = []
@@ -1622,18 +1644,17 @@ def run_stage4h_practical_chain(
         status = "development_candidate"
     else:
         status = "rejected"
-    run_id = (
-        datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-        + "_"
-        + config.experiment_id
-    )
+    run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "_" + config.experiment_id
     run_dir = Path(output_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     _write_csv(run_dir / "decisions.csv", all_decisions)
     _write_csv(run_dir / "orders.csv", executed)
     _write_csv(run_dir / "fold_metrics.csv", fold_metrics)
     _write_json(run_dir / "models.json", model_records)
-    _write_json(run_dir / "summary.json", {"status": status, "gates": gates, "variants": results})
+    _write_json(
+        run_dir / "summary.json",
+        {"status": status, "gates": gates, "variants": results},
+    )
     _render_chart(
         run_dir / "practical_chain.html",
         "practical_chain",

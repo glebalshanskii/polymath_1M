@@ -14,7 +14,6 @@ from polymath_1M.screening.practical_chain import (
     load_practical_chain_config,
 )
 
-
 EDGES = torch.tensor(
     (0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.000001),
     dtype=torch.float64,
@@ -183,6 +182,7 @@ class PracticalChainTest(unittest.TestCase):
         self.assertLessEqual(rows[0]["fill_cost"], 10.0)
         self.assertLessEqual(rows[0]["fill_vwap"], 0.78)
         self.assertGreater(rows[0]["primary_pnl"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

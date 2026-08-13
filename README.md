@@ -21,7 +21,8 @@ fixed-size FAK orders с worst-price limit и `hold_to_resolution`. Ни оди�
 вариант пока не прошёл все проверки для paper/live. Буквальная one-step
 Markov формула отдельно проверена и отклонена в Stage 4f; исправленная
 terminal Markov модель Stage 4g устранила ложный longshot edge, но не дала
-сигналов.
+сигналов. Raw absorbing chain Stage 4h без smoothing дала 5,713
+fills, но отклонена из-за большого убытка и coarse-state selection bias.
 
 - [Ответы по площадке, профилям и моделям](docs/reports/murtazin_strategy_reconstruction.md)
 - [Практический план](docs/plan.md)
@@ -118,6 +119,17 @@ residual. После fee, 1¢/share execution haircut, ask `[0.60,0.90]` и arti
 OOS decisions. Это не breakeven: сделок не было. Candidate отклонён, holdout
 не открывался. Детали — в
 [Stage 4g report](docs/reports/murtazin_terminal_markov_stage4g.md).
+
+Этап 4h проверил полную time-inhomogeneous absorbing chain на
+последних 120 секундах BTC 5m. Семь raw `8x8` transition matrices и
+terminal `8x2` matrix строились без smoothing, pseudocount и hard
+persistence gate. Все rows имели достаточный support, но стратегия
+потеряла `12,204.73 USDC` на 5,713 validation fills, PF `0.692`, и была
+отрицательна во всех 4/4 folds. Причина — грубые 12.5¢ states:
+bucket-average probability завышает win rate выбранных дешёвых
+tokens. Smoothing эту потерю информации не исправляет. Holdout не
+открывался; Stage 4h не допускается к paper/live. Детали — в
+[Stage 4h report](docs/reports/murtazin_practical_chain_stage4h.md).
 
 Запуск аудита:
 
@@ -277,3 +289,17 @@ uv run polymath_1M stage4g-terminal-markov \
 Она сохраняет terminal calibration, absorbing probabilities, funnel,
 per-decision ledger и Plotly в ignored `outputs/terminal_markov/`. Команда
 использует только development folds и не читает May holdout.
+
+PMXT-only cache и raw practical chain Stage 4h:
+
+```bash
+uv run polymath_1M stage4h-build-cache \
+  --config cfg/experiments/stage4h_practical_chain.json
+uv run polymath_1M stage4h-practical-chain \
+  --config cfg/experiments/stage4h_practical_chain.json
+```
+
+Команда читает только development interval, сохраняет raw matrices,
+per-checkpoint decisions, order/fill ledger и self-contained Plotly в ignored
+`outputs/practical_chain/`. Canonical result уже получен и отклонён;
+повторный run не является новой validation.
