@@ -10,6 +10,9 @@ from .collector.runner import run_collector
 from .historical.binance import download_binance_context
 from .historical.download import download_kacho_dataset
 from .historical.overlap import run_pmxt_overlap_smoke
+from .historical.polymarket_chainlink import (
+    download_polymarket_chainlink_context,
+)
 from .screening.calibration import run_stage4b_calibration
 from .screening.capital_chart import run_stage4d_capital_chart
 from .screening.holdout import run_stage4b_test
@@ -262,6 +265,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="data/historical",
         help="ignored directory for third-party historical files",
     )
+    chainlink_context = subparsers.add_parser(
+        "polymarket-chainlink-context-download",
+        help="archive minute Polymarket Chainlink frontend history before holdout",
+    )
+    chainlink_context.add_argument(
+        "--config",
+        default="cfg/datasets/polymarket_chainlink_btcusd_1m_stage4d.json",
+        help="development-only Polymarket Chainlink context config",
+    )
+    chainlink_context.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory for raw frontend responses and manifest",
+    )
     time_chart = subparsers.add_parser(
         "stage4d-time-chart",
         help="render Stage 4d BTC outcomes, signals and PnL against UTC time",
@@ -280,6 +297,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--binance-config",
         default="cfg/datasets/binance_btcusdt_1m_202604_202605.json",
         help="pinned Binance BTCUSDT visualization-context config",
+    )
+    time_chart.add_argument(
+        "--chainlink-config",
+        default="cfg/datasets/polymarket_chainlink_btcusd_1m_stage4d.json",
+        help="Polymarket Chainlink frontend history context config",
     )
     time_chart.add_argument(
         "--data-root",
@@ -368,12 +390,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
     elif args.command == "binance-context-download":
         print(download_binance_context(args.config, args.data_root))
+    elif args.command == "polymarket-chainlink-context-download":
+        print(download_polymarket_chainlink_context(args.config, args.data_root))
     elif args.command == "stage4d-time-chart":
         print(
             run_stage4d_time_chart(
                 args.config,
                 args.proposal,
                 args.binance_config,
+                args.chainlink_config,
                 starting_capital=args.starting_capital,
                 data_root=args.data_root,
                 output_root=args.output_root,

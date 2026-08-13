@@ -8,6 +8,7 @@ dependencies = [
     "duckdb>=1.5,<1.6",
     "matplotlib>=3.10,<4",
     "numpy>=2.4.4",
+    "plotly>=6,<7",
     "pyarrow>=25,<26",
     "torch>=2.13.0",
     "websockets>=15,<17",
