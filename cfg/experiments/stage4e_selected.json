@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "experiment_id": "stage4e_btc_5m_regime_models_20260324_20260518_selected",
+  "model_config": "cfg/experiments/stage4e_regime_models.json",
+  "model_config_sha256": "b87d82760034da56ab7d3bb45a39619967be9ee2d19c7c266b7f29f01931310b",
+  "dataset_manifest": "data/historical/kachoio--polymarket-5-minute-crypto-up-down-markets/42d917dc8e3205dde8ac909792af0cce2d715c9f/manifest.json",
+  "dataset_manifest_sha256": "8cd0b3a15d3a20b0feba37b941f2b9ab5f48a29a0edd7718d960f7c790f03848",
+  "chainlink_manifest": "data/historical/polymarket_chainlink_btcusd_1m_stage4e_20260324_20260518/manifest.json",
+  "chainlink_manifest_sha256": "cffaf2f91366b6163d38b3e54841bf839a4720a3286fc0fb4026d7a2f5e189f0",
+  "gamma_universe": "data/historical/stage4c_pmxt_20260422_20260621/universe.parquet",
+  "gamma_universe_sha256": "1b96396fda12468f632e64c4d0284a5a6ee9213f55e0f8d4b0f12b75c8f9221e",
+  "gamma_universe_manifest": "data/historical/stage4c_pmxt_20260422_20260621/universe_manifest.json",
+  "gamma_universe_manifest_sha256": "348033b597762f0b1f0e6c351d5c98b0067e5b59a1c16bacd74d6c37007a84a4",
+  "proposal": "outputs/regime_models/20260813T123431Z_stage4e_btc_5m_regime_models_20260324_20260518/proposal.json",
+  "proposal_sha256": "9544dca385a33a06c618235cb04e4ea65c7e9c196bf61507edebfe5766cd28db",
+  "proposal_source_commit": "583ded4698341a0294620a4e427a39b258e2d378",
+  "selected_variant": "m6_chainlink_regime_decay_lagged",
+  "development_summary": {
+    "fills": 637,
+    "net_pnl_usdc": 133.2779451461853,
+    "profit_factor": 1.1375240743223314,
+    "max_drawdown_usdc": 62.611975703990595,
+    "worst_rolling_24h_pnl_usdc": -41.980732446988924,
+    "positive_folds": 5,
+    "stress_2c_net_pnl_usdc": 58.14584427582403
+  },
+  "holdout_gate": {
+    "minimum_fills": 50,
+    "minimum_profit_factor": 1.10,
+    "require_positive_net_pnl": true,
+    "require_positive_stress_2c_pnl": true
+  }
+}

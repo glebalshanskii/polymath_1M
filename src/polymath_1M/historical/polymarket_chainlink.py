@@ -33,6 +33,7 @@ class PolymarketChainlinkConfig:
     period_end_exclusive: datetime
     request_span_minutes: int
     context_only: bool
+    causal_feature_source: bool
     max_workers: int
     config_sha256: str
 
@@ -94,6 +95,9 @@ def load_polymarket_chainlink_config(
         "context_only",
         "max_workers",
     }
+    schema_version = int(payload.get("schema_version", -1))
+    if schema_version == 2:
+        required.add("causal_feature_source")
     if payload.keys() != required:
         raise PolymarketChainlinkError(
             f"Chainlink config fields differ: missing={sorted(required - payload.keys())}, "
@@ -104,12 +108,12 @@ def load_polymarket_chainlink_config(
     span = int(payload["request_span_minutes"])
     workers = int(payload["max_workers"])
     if (
-        payload["schema_version"] != 1
+        schema_version not in {1, 2}
         or payload["provider"] != "Polymarket frontend proxy"
         or payload["endpoint"] != "https://polymarket.com/api/crypto/price-history"
         or payload["symbol"] != "BTC"
         or payload["variant"] != "hourly"
-        or payload["context_only"] is not True
+        or not isinstance(payload["context_only"], bool)
         or span != 60
         or not 1 <= workers <= 16
         or start.second != 0
@@ -122,11 +126,24 @@ def load_polymarket_chainlink_config(
         raise PolymarketChainlinkError(
             "Chainlink source must be the frozen hourly BTC development context"
         )
+    causal_feature_source = bool(payload.get("causal_feature_source", False))
+    if schema_version == 1 and (
+        payload["context_only"] is not True or causal_feature_source
+    ):
+        raise PolymarketChainlinkError(
+            "Chainlink source must be the frozen hourly BTC development context"
+        )
+    if schema_version == 2 and (
+        payload["context_only"] is not False or not causal_feature_source
+    ):
+        raise PolymarketChainlinkError(
+            "schema 2 Chainlink source must be a causal feature source"
+        )
     canonical = json.dumps(
         payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode()
     return PolymarketChainlinkConfig(
-        schema_version=1,
+        schema_version=schema_version,
         dataset_id=str(payload["dataset_id"]),
         provider=str(payload["provider"]),
         endpoint=str(payload["endpoint"]),
@@ -135,7 +152,8 @@ def load_polymarket_chainlink_config(
         period_start=start,
         period_end_exclusive=end,
         request_span_minutes=span,
-        context_only=True,
+        context_only=bool(payload["context_only"]),
+        causal_feature_source=causal_feature_source,
         max_workers=workers,
         config_sha256=hashlib.sha256(canonical).hexdigest(),
     )
@@ -291,7 +309,7 @@ def download_polymarket_chainlink_context(
     if set(records) != {spec.index for spec in expected}:
         raise PolymarketChainlinkError("Chainlink download is incomplete")
     manifest = {
-        "schema_version": 1,
+        "schema_version": config.schema_version,
         "created_at": datetime.now(UTC).isoformat(),
         "config_path": str(config_path),
         "config_sha256": config.config_sha256,
@@ -299,10 +317,11 @@ def download_polymarket_chainlink_context(
         "endpoint": config.endpoint,
         "symbol": config.symbol,
         "variant": config.variant,
-        "context_only": True,
+        "context_only": config.context_only,
+        "causal_feature_source": config.causal_feature_source,
         "period_start": config.period_start.isoformat(),
         "period_end_exclusive": config.period_end_exclusive.isoformat(),
-        "holdout_boundary_excluded_from_raw": True,
+        "period_end_excluded_from_raw": True,
         "requests": [records[index] for index in sorted(records)],
     }
     manifest_path = dataset_dir / "manifest.json"
@@ -327,10 +346,14 @@ def load_polymarket_chainlink_series(
             "download Polymarket Chainlink development context first"
         )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    legacy_boundary = manifest.get("holdout_boundary_excluded_from_raw") is True
+    current_boundary = manifest.get("period_end_excluded_from_raw") is True
     if (
         manifest.get("config_sha256") != config.config_sha256
-        or manifest.get("context_only") is not True
-        or manifest.get("holdout_boundary_excluded_from_raw") is not True
+        or manifest.get("context_only") is not config.context_only
+        or bool(manifest.get("causal_feature_source", False))
+        is not config.causal_feature_source
+        or not (legacy_boundary or current_boundary)
     ):
         raise PolymarketChainlinkError("Chainlink manifest differs from config")
     points: dict[int, float] = {}
@@ -395,7 +418,8 @@ def load_polymarket_chainlink_series(
             "endpoint": config.endpoint,
             "symbol": "btc/usd",
             "variant": config.variant,
-            "context_only": True,
+            "context_only": config.context_only,
+            "causal_feature_source": config.causal_feature_source,
             "rows": int(timestamps.numel()),
             "request_count": len(file_records),
             "files": file_records,

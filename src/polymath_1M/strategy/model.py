@@ -64,11 +64,13 @@ def calculate_platform_fee(
     fee_rate: float | torch.Tensor,
     *,
     decimals: int,
+    exponent: float | torch.Tensor = 1.0,
 ) -> torch.Tensor:
     """Calculate current Polymarket taker fees per market/outcome side.
 
-    Inputs are matched shares and prices with shape ``[N, 2, L]``. The fee is
-    rounded per aggregated matched price level and accumulated over L2 levels.
+    Inputs are matched shares and prices with shape ``[N, 2, L]``. ``exponent``
+    supports both the legacy quadratic and current linear fee curves. The fee
+    is rounded per aggregated matched price level and accumulated over L2 levels.
     """
 
     if shares.shape != prices.shape or shares.ndim != 3:
@@ -80,9 +82,20 @@ def calculate_platform_fee(
         rates = rates[:, None, None]
     elif rates.ndim != 0:
         raise ValueError("fee rate must be scalar or have shape [market]")
-    if bool((rates < 0).any().item()) or decimals < 0:
-        raise ValueError("fee rate and decimals must be nonnegative")
-    raw_per_level = shares * rates * prices * (1 - prices)
+    exponents = torch.as_tensor(exponent, dtype=shares.dtype, device=shares.device)
+    if exponents.ndim == 1:
+        if exponents.shape[0] != shares.shape[0]:
+            raise ValueError("fee exponent must have shape [market]")
+        exponents = exponents[:, None, None]
+    elif exponents.ndim != 0:
+        raise ValueError("fee exponent must be scalar or have shape [market]")
+    if (
+        bool((rates < 0).any().item())
+        or bool((exponents <= 0).any().item())
+        or decimals < 0
+    ):
+        raise ValueError("fee rate/decimals must be nonnegative and exponent positive")
+    raw_per_level = shares * rates * torch.pow(prices * (1 - prices), exponents)
     scale = float(10**decimals)
     return (torch.round(raw_per_level * scale) / scale).sum(dim=2)
 
@@ -159,12 +172,36 @@ def evaluate_batch(
     extra_cost_per_share: float,
     require_market_favorite: bool,
     forced_side: torch.Tensor | None = None,
+    probability_up_override: torch.Tensor | None = None,
     apply_support_gate: bool = True,
     apply_persistence_gate: bool = True,
     apply_edge_gate: bool = True,
+    platform_fee_exponent: float | torch.Tensor = 1.0,
 ) -> Evaluation:
     states = _state_bins(batch.current_mid_up, model.edges)
-    probability_up = model.probability_up[states]
+    if probability_up_override is None:
+        probability_up = model.probability_up[states]
+    else:
+        if (
+            probability_up_override.shape != (len(batch),)
+            or probability_up_override.dtype != torch.float64
+            or probability_up_override.device != batch.current_mid_up.device
+        ):
+            raise ValueError(
+                "probability override must be float64 with shape [market] "
+                "on the batch device"
+            )
+        if bool(
+            (
+                ~torch.isfinite(probability_up_override)
+                | (probability_up_override < 0)
+                | (probability_up_override > 1)
+            )
+            .any()
+            .item()
+        ):
+            raise ValueError("probability override values must be finite in [0, 1]")
+        probability_up = probability_up_override
     probabilities = torch.stack((probability_up, 1 - probability_up), dim=1)
     prices = batch.ask_depth_prices
     sizes = torch.nan_to_num(batch.ask_depth_sizes, nan=0.0, posinf=0.0, neginf=0.0)
@@ -184,16 +221,19 @@ def evaluate_batch(
         prices,
         platform_fee_rate,
         decimals=platform_fee_round_decimals,
+        exponent=platform_fee_exponent,
     )
     side_vwap = torch.where(
         side_shares > 0,
         side_cost / side_shares,
         torch.full_like(side_shares, float("nan")),
     )
-    decision_fee_per_share = (
-        _fee_rate_by_market(platform_fee_rate, batch.asks)[:, None]
-        * batch.asks
-        * (1 - batch.asks)
+    decision_curve = batch.asks * (1 - batch.asks)
+    decision_fee_per_share = _fee_rate_by_market(
+        platform_fee_rate, batch.asks
+    )[:, None] * torch.pow(
+        decision_curve,
+        _fee_rate_by_market(platform_fee_exponent, batch.asks)[:, None],
     )
     side_edges = (
         probabilities - batch.asks - decision_fee_per_share - extra_cost_per_share

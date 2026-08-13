@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "experiment_id": "stage4e_trent_btc5m_early_source_robustness",
+  "primary_config": "cfg/experiments/stage4e_regime_models.json",
+  "dataset_config": "cfg/datasets/trent_btc5m_steps_stage4e.json",
+  "outcome_config": "cfg/datasets/trent_btc5m_gamma_stage4e.json",
+  "chainlink_config": "cfg/datasets/polymarket_chainlink_btcusd_1m_stage4e_early.json",
+  "period_start": "2026-02-21T15:55:00Z",
+  "period_end_exclusive": "2026-03-24T20:10:00Z",
+  "folds": [
+    {"fold_id": "early_fold_1", "train_start": "2026-02-21T15:55:00Z", "train_end_exclusive": "2026-03-03T00:00:00Z", "validation_start": "2026-03-03T00:00:00Z", "validation_end_exclusive": "2026-03-10T00:00:00Z"},
+    {"fold_id": "early_fold_2", "train_start": "2026-02-21T15:55:00Z", "train_end_exclusive": "2026-03-10T00:00:00Z", "validation_start": "2026-03-10T00:00:00Z", "validation_end_exclusive": "2026-03-17T00:00:00Z"},
+    {"fold_id": "early_fold_3", "train_start": "2026-02-21T15:55:00Z", "train_end_exclusive": "2026-03-17T00:00:00Z", "validation_start": "2026-03-17T00:00:00Z", "validation_end_exclusive": "2026-03-24T20:10:00Z"}
+  ],
+  "variants": ["m0_coarse_lookup_10c", "m6_chainlink_regime_decay_lagged"],
+  "decision_seconds_before_end": 60,
+  "transition_horizon_seconds": 60,
+  "execution_latency_seconds": 1,
+  "minimum_nonempty_market_fraction": 0.999,
+  "execution_size_assumption": "target_notional_available_at_best_ask_only_if_total_ask_notional_covers_target",
+  "outcome_policy": "gamma_authoritative_resolved_outcome"
+}
