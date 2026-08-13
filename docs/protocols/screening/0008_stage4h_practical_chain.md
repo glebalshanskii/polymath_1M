@@ -141,3 +141,22 @@ gate для следующего независимого experiment, не ст�
 называть тот же development interval независимой validation. Любая следующая
 версия получает новый config/experiment id; reserved holdout остаётся закрыт
 до отдельного явного решения.
+
+## Amendment 2026-08-13: bounded execution proxy до просмотра PnL
+
+После построения signal cache и support audit, но до получения любого PnL,
+full-L2 execution query был остановлен как инженерно непрактичный: удалённый
+PMXT Parquet не pushdown'ит выбор последних post-snapshot updates достаточно
+узко и создал 43 GB, затем 78 GB DuckDB spill уже на первых шести из 551
+часов. Эти временные файлы удалены; orders, fills и PnL получены не были.
+
+Для единственного Stage 4h run execution estimator заменён на уже проверенный
+Stage 4 screening proxy: causal PMXT `best_ask` выбранного token на
+`arrival=decision+1s`, с предполагаемой доступностью 10 USDC на этом уровне.
+Если arrival ask выше frozen price limit, fill отсутствует. Все остальные
+decision, fee, edge, chronology и acceptance rules сохранены.
+
+Это optimistic approximation, а не full-L2 backtest. Даже
+`development_candidate` не разрешает paper/live: следующий prospective этап
+обязан использовать собственный full-L2 collector. Причина и момент amendment
+сохраняются в git до первого завершённого PnL run.

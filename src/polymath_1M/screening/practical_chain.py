@@ -978,96 +978,23 @@ def _orders(
     return decisions, order_rows
 
 
-SNAPSHOT_QUERY = """
-WITH snapshots AS (
-    SELECT
-        r.condition_id,
-        r.variant,
-        r.asset_id,
-        r.arrival_ms,
-        epoch_ms(p.timestamp_received) AS snapshot_receive_ms,
-        epoch_ms(p.timestamp) AS snapshot_source_ms,
-        p.file_row_number AS snapshot_source_row,
-        p.asset_id AS snapshot_asset_id,
-        p.asset_id = r.asset_id AS is_direct,
-        CASE WHEN p.asset_id = r.asset_id THEN p.asks ELSE p.bids END AS levels
-    FROM requested_execution AS r
-    JOIN read_parquet(?, file_row_number=true) AS p
-      ON p.market = r.market
-     AND p.asset_id IN (r.asset_id, r.other_asset_id)
-    WHERE p.event_type = 'book'
-      AND epoch_ms(p.timestamp_received) <= r.arrival_ms
-    QUALIFY row_number() OVER (
-        PARTITION BY r.condition_id, r.variant
-        ORDER BY (p.asset_id = r.asset_id) DESC,
-                 p.timestamp_received DESC, p.timestamp DESC,
-                 p.file_row_number DESC
-    ) = 1
-)
-SELECT * FROM snapshots ORDER BY condition_id, variant
-"""
-
-
-CHANGES_QUERY = """
+EXECUTION_TOP_QUERY = """
 SELECT
-    s.condition_id,
-    s.variant,
-    CASE WHEN s.is_direct THEN CAST(p.price AS DOUBLE)
-         ELSE 1 - CAST(p.price AS DOUBLE)
-    END AS price,
-    arg_max(CAST(p.size AS DOUBLE), struct_pack(
-        r := epoch_ms(p.timestamp_received),
-        s := epoch_ms(p.timestamp),
-        n := p.file_row_number
-    )) AS size
-FROM snapshots_execution AS s
-JOIN read_parquet(?, file_row_number=true) AS p
-  ON p.asset_id = s.snapshot_asset_id
-WHERE p.event_type = 'price_change'
-  AND upper(p.side) = CASE WHEN s.is_direct THEN 'SELL' ELSE 'BUY' END
-  AND epoch_ms(p.timestamp_received) <= s.arrival_ms
-  AND struct_pack(
-      r := epoch_ms(p.timestamp_received),
-      s := epoch_ms(p.timestamp),
-      n := p.file_row_number
-  ) > struct_pack(
-      r := s.snapshot_receive_ms,
-      s := s.snapshot_source_ms,
-      n := s.snapshot_source_row
-  )
-GROUP BY s.condition_id, s.variant,
-         CASE WHEN s.is_direct THEN CAST(p.price AS DOUBLE)
-              ELSE 1 - CAST(p.price AS DOUBLE)
-         END
-ORDER BY condition_id, variant, price
+    r.condition_id,
+    r.variant,
+    CAST(p.best_ask AS DOUBLE) AS best_ask,
+    epoch_ms(p.timestamp_received) AS receive_timestamp_ms
+FROM requested_execution AS r
+JOIN read_parquet(?) AS p
+  ON p.market = r.market AND p.asset_id = r.asset_id
+WHERE epoch_ms(p.timestamp_received) <= r.arrival_ms
+  AND p.best_ask IS NOT NULL
+QUALIFY row_number() OVER (
+    PARTITION BY r.condition_id, r.variant
+    ORDER BY p.timestamp_received DESC, p.timestamp DESC
+) = 1
+ORDER BY condition_id, variant
 """
-
-
-def _rebuild_depths(
-    snapshots: pa.Table, changes: pa.Table
-) -> dict[tuple[str, str], tuple[list[float], list[float]]]:
-    latest_changes: dict[tuple[str, str], dict[float, float]] = defaultdict(dict)
-    for row in changes.to_pylist():
-        latest_changes[(str(row["condition_id"]), str(row["variant"]))][
-            float(row["price"])
-        ] = float(row["size"])
-    result: dict[tuple[str, str], tuple[list[float], list[float]]] = {}
-    for row in snapshots.to_pylist():
-        key = (str(row["condition_id"]), str(row["variant"]))
-        levels: dict[float, float] = {}
-        decoded = json.loads(row["levels"] or "[]")
-        for price_raw, size_raw in decoded:
-            price = float(price_raw)
-            if not bool(row["is_direct"]):
-                price = 1 - price
-            levels[price] = float(size_raw)
-        levels.update(latest_changes.get(key, {}))
-        ordered = sorted((price, size) for price, size in levels.items() if size > 0)
-        result[key] = (
-            [item[0] for item in ordered],
-            [item[1] for item in ordered],
-        )
-    return result
 
 
 def _execution_cache_record(
@@ -1148,11 +1075,9 @@ def _execution_depth_hour(
         connection = duckdb.connect()
         try:
             connection.register("requested_execution", requested)
-            snapshots = connection.execute(
-                SNAPSHOT_QUERY, [source_url]
+            execution_tops = connection.execute(
+                EXECUTION_TOP_QUERY, [source_url]
             ).fetch_arrow_table()
-            connection.register("snapshots_execution", snapshots)
-            changes = connection.execute(CHANGES_QUERY, [source_url]).fetch_arrow_table()
             break
         except (duckdb.Error, OSError, RuntimeError) as exc:
             error = exc
@@ -1162,7 +1087,14 @@ def _execution_depth_hour(
             connection.close()
     else:
         raise PracticalChainError(f"PMXT execution query failed for {hour}: {error}")
-    depths = _rebuild_depths(snapshots, changes)
+    depths = {
+        (str(row["condition_id"]), str(row["variant"])): (
+            [float(row["best_ask"])],
+            [config.target_notional_usdc / float(row["best_ask"])],
+        )
+        for row in execution_tops.to_pylist()
+        if float(row["best_ask"]) > 0
+    }
     rows = [
         {
             "condition_id": condition_id,
@@ -1185,8 +1117,7 @@ def _execution_depth_hour(
             "order_count": len(orders),
             "orders_sha256": _orders_sha256(orders),
             "depth_count": len(rows),
-            "snapshot_count": snapshots.num_rows,
-            "change_count": changes.num_rows,
+            "execution_top_count": execution_tops.num_rows,
             "parquet_sha256": _sha256(output_path),
         },
     )
