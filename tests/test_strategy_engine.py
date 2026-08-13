@@ -180,6 +180,64 @@ class StrategyEngineTest(unittest.TestCase):
         self.assertTrue(torch.equal(first.net_edge, second.net_edge))
         self.assertNotEqual(first.net_pnl.item(), second.net_pnl.item())
 
+    def test_probability_override_changes_signal_without_changing_state_gates(
+        self,
+    ) -> None:
+        train = _batch()
+        model = fit_lookup_model(
+            train,
+            torch.tensor([0.0, 0.5, 1.000001], dtype=torch.float64),
+            terminal_alpha=1.0,
+            transition_alpha=1.0,
+        )
+        one = train.index(torch.tensor([0], dtype=torch.int64))
+        result = evaluate_batch(
+            one,
+            model,
+            minimum_support=1,
+            minimum_persistence=0.0,
+            minimum_ask=0.01,
+            maximum_ask=0.99,
+            minimum_net_edge=-1.0,
+            target_notional_usdc=5.0,
+            platform_fee_rate=0.07,
+            platform_fee_round_decimals=5,
+            extra_cost_per_share=0.01,
+            require_market_favorite=False,
+            probability_up_override=torch.tensor([0.10], dtype=torch.float64),
+        )
+        self.assertEqual(result.side.item(), 1)
+        self.assertAlmostEqual(result.probability.item(), 0.90)
+        self.assertEqual(result.state_bin.item(), 0)
+        self.assertEqual(result.support.item(), model.support[0].item())
+
+    def test_probability_override_rejects_invalid_values(self) -> None:
+        train = _batch()
+        model = fit_lookup_model(
+            train,
+            torch.tensor([0.0, 0.5, 1.000001], dtype=torch.float64),
+            terminal_alpha=1.0,
+            transition_alpha=1.0,
+        )
+        with self.assertRaisesRegex(ValueError, "finite in"):
+            evaluate_batch(
+                train,
+                model,
+                minimum_support=1,
+                minimum_persistence=0.0,
+                minimum_ask=0.01,
+                maximum_ask=0.99,
+                minimum_net_edge=0.0,
+                target_notional_usdc=5.0,
+                platform_fee_rate=0.07,
+                platform_fee_round_decimals=5,
+                extra_cost_per_share=0.01,
+                require_market_favorite=False,
+                probability_up_override=torch.tensor(
+                    [0.1, 0.2, float("nan"), 0.4], dtype=torch.float64
+                ),
+            )
+
     def test_execution_book_does_not_choose_the_order_side(self) -> None:
         train = _batch()
         edges = torch.tensor([0.0, 0.5, 1.000001], dtype=torch.float64)

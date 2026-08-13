@@ -159,12 +159,35 @@ def evaluate_batch(
     extra_cost_per_share: float,
     require_market_favorite: bool,
     forced_side: torch.Tensor | None = None,
+    probability_up_override: torch.Tensor | None = None,
     apply_support_gate: bool = True,
     apply_persistence_gate: bool = True,
     apply_edge_gate: bool = True,
 ) -> Evaluation:
     states = _state_bins(batch.current_mid_up, model.edges)
-    probability_up = model.probability_up[states]
+    if probability_up_override is None:
+        probability_up = model.probability_up[states]
+    else:
+        if (
+            probability_up_override.shape != (len(batch),)
+            or probability_up_override.dtype != torch.float64
+            or probability_up_override.device != batch.current_mid_up.device
+        ):
+            raise ValueError(
+                "probability override must be float64 with shape [market] "
+                "on the batch device"
+            )
+        if bool(
+            (
+                ~torch.isfinite(probability_up_override)
+                | (probability_up_override < 0)
+                | (probability_up_override > 1)
+            )
+            .any()
+            .item()
+        ):
+            raise ValueError("probability override values must be finite in [0, 1]")
+        probability_up = probability_up_override
     probabilities = torch.stack((probability_up, 1 - probability_up), dim=1)
     prices = batch.ask_depth_prices
     sizes = torch.nan_to_num(batch.ask_depth_sizes, nan=0.0, posinf=0.0, neginf=0.0)

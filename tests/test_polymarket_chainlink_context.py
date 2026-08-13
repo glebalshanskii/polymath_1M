@@ -29,6 +29,7 @@ class PolymarketChainlinkContextTest(unittest.TestCase):
         self.assertEqual(config.symbol, "BTC")
         self.assertEqual(config.variant, "hourly")
         self.assertTrue(config.context_only)
+        self.assertFalse(config.causal_feature_source)
         specs = _request_specs(config)
         self.assertEqual(len(specs), 384)
         self.assertEqual(
@@ -64,6 +65,17 @@ class PolymarketChainlinkContextTest(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "frozen hourly"):
                 load_polymarket_chainlink_config(path)
+
+    def test_stage4e_config_is_causal_feature_source(self) -> None:
+        config = load_polymarket_chainlink_config(
+            "cfg/datasets/polymarket_chainlink_btcusd_1m_stage4e.json"
+        )
+        self.assertEqual(config.schema_version, 2)
+        self.assertFalse(config.context_only)
+        self.assertTrue(config.causal_feature_source)
+        specs = _request_specs(config)
+        self.assertEqual(len(specs), 1_309)
+        self.assertLess(specs[-1].end_s, int(config.period_end_exclusive.timestamp()))
 
     def test_decision_price_requires_exact_chainlink_minute(self) -> None:
         series = PolymarketChainlinkSeries(

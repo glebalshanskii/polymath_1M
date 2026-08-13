@@ -19,6 +19,7 @@ from .screening.holdout import run_stage4b_test
 from .screening.openmarket import run_openmarket_sanity
 from .screening.plateau import run_stage4d_calibration
 from .screening.pmxt_dataset import build_stage4_pmxt_dataset
+from .screening.regime_models import run_stage4e_development
 from .screening.run import run_stage4_screening
 from .screening.time_chart import run_stage4d_time_chart
 from .screening.universe import build_stage4_universe
@@ -319,6 +320,25 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/charts",
         help="ignored directory for chart and exact signal ledgers",
     )
+    regime_models = subparsers.add_parser(
+        "stage4e-develop",
+        help="run the frozen sequential BTC 5m regime-model comparison",
+    )
+    regime_models.add_argument(
+        "--config",
+        default="cfg/experiments/stage4e_regime_models.json",
+        help="path to the frozen Stage 4e model-sequence config",
+    )
+    regime_models.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory containing pinned Kacho and Chainlink inputs",
+    )
+    regime_models.add_argument(
+        "--output-root",
+        default="outputs/regime_models",
+        help="ignored directory for per-model diagnostics and proposal",
+    )
     return parser
 
 
@@ -400,6 +420,14 @@ def main(argv: Sequence[str] | None = None) -> None:
                 args.binance_config,
                 args.chainlink_config,
                 starting_capital=args.starting_capital,
+                data_root=args.data_root,
+                output_root=args.output_root,
+            )
+        )
+    elif args.command == "stage4e-develop":
+        print(
+            run_stage4e_development(
+                args.config,
                 data_root=args.data_root,
                 output_root=args.output_root,
             )
