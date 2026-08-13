@@ -8,12 +8,14 @@ from polymath_1M.domain import DecisionBatch
 from polymath_1M.historical.polymarket_chainlink import PolymarketChainlinkSeries
 from polymath_1M.screening.regime_models import (
     _diagnostic_rows,
+    _evaluate,
+    _uniform_edges,
     chainlink_features,
     fit_logistic_model,
     load_regime_config,
     predict_logistic,
 )
-from polymath_1M.strategy.model import Evaluation
+from polymath_1M.strategy.model import Evaluation, fit_lookup_model
 
 
 class RegimeModelTest(unittest.TestCase):
@@ -134,6 +136,24 @@ class RegimeModelTest(unittest.TestCase):
         )[0]
         self.assertEqual(row["side"], "UP")
         self.assertEqual(row["side_code"], 0)
+
+    def test_nonfinite_forecast_marks_snapshot_invalid(self) -> None:
+        batch = self._one_market(120)
+        config = load_regime_config("cfg/experiments/stage4e_regime_models.json")
+        model = fit_lookup_model(
+            batch,
+            _uniform_edges(config.coarse_price_bin_width, torch.device("cpu")),
+            terminal_alpha=config.terminal_alpha,
+            transition_alpha=config.transition_alpha,
+        )
+        result = _evaluate(
+            batch,
+            model,
+            torch.tensor([float("nan")], dtype=torch.float64),
+            config,
+        )
+        self.assertFalse(result.filled.item())
+        self.assertEqual(result.status_code.item(), 1)
 
     @staticmethod
     def _one_market(start: int) -> DecisionBatch:

@@ -8,7 +8,7 @@ import os
 import platform
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -535,6 +535,17 @@ def _evaluate(
     *,
     platform_fee_exponent: float = 1.0,
 ) -> Evaluation:
+    if probability_up is not None:
+        finite_probability = torch.isfinite(probability_up)
+        batch = replace(
+            batch,
+            snapshot_valid=batch.snapshot_valid & finite_probability,
+        )
+        probability_up = torch.where(
+            finite_probability,
+            probability_up,
+            torch.full_like(probability_up, 0.5),
+        )
     return evaluate_batch(
         batch,
         coarse_model,
