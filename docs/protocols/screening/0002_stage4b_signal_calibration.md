@@ -27,12 +27,14 @@ approximation, actual Gamma fees, split 60/20/20 и train-only terminal lookup
 
 1. `markets`;
 2. `snapshot_valid`;
-3. `support_pass`;
-4. `range_pass`;
-5. `persistence_pass`;
-6. `edge_pass` при actual fee + 1¢/share;
-7. `execution_liquidity`;
-8. `filled`.
+3. `side_policy_pass` (no tie и, где требуется, model side совпадает с
+   market favorite);
+4. `support_pass`;
+5. `range_pass`;
+6. `persistence_pass`;
+7. `edge_pass` при actual fee + 1¢/share;
+8. `execution_liquidity`;
+9. `filled`.
 
 Funnel считается тем же execution kernel, что и backtest. Failures не
 переименовываются в no-fill. Original config funnel нужен как baseline;
