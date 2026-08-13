@@ -19,7 +19,9 @@ shares криптовалютных `Up/Down` markets. Рынки и профи�
 Базовая исполнимая реализация — empirical terminal-probability model,
 fixed-size FAK orders с worst-price limit и `hold_to_resolution`. Ни один
 вариант пока не прошёл все проверки для paper/live. Буквальная one-step
-Markov формула отдельно проверена и отклонена в Stage 4f.
+Markov формула отдельно проверена и отклонена в Stage 4f; исправленная
+terminal Markov модель Stage 4g устранила ложный longshot edge, но не дала
+сигналов.
 
 - [Ответы по площадке, профилям и моделям](docs/reports/murtazin_strategy_reconstruction.md)
 - [Практический план](docs/plan.md)
@@ -106,6 +108,14 @@ PF 0.598. Формула смешивает вероятность следую�
 payout probability и создаёт ложный edge на дешёвых tokens. Оба варианта
 отклонены; детали — в
 [Stage 4f report](docs/reports/murtazin_literal_markov_stage4f.md).
+
+Этап 4g исправил сам forecast: terminal payout `WIN/LOSE` якорится на market
+midpoint, а transition pair влияет только через train-only calibration
+residual. После fee, 1¢/share execution haircut, ask `[0.60,0.90]` и article
+`persistence >=0.87` все три fixed variants дали 0 signals/fills на 15,477
+OOS decisions. Это не breakeven: сделок не было. Candidate отклонён, holdout
+не открывался. Детали — в
+[Stage 4g report](docs/reports/murtazin_terminal_markov_stage4g.md).
 
 Запуск аудита:
 
@@ -254,3 +264,14 @@ uv run polymath_1M stage4f-literal-markov \
 Run сохраняет per-decision ledger, fold metrics, transition matrices и
 self-contained Plotly в ignored `outputs/literal_markov/`. Новый holdout эта
 команда не читает.
+
+Исправленная terminal-payout Markov модель запускается отдельно:
+
+```bash
+uv run polymath_1M stage4g-terminal-markov \
+  --config cfg/experiments/stage4g_terminal_markov.json
+```
+
+Она сохраняет terminal calibration, absorbing probabilities, funnel,
+per-decision ledger и Plotly в ignored `outputs/terminal_markov/`. Команда
+использует только development folds и не читает May holdout.

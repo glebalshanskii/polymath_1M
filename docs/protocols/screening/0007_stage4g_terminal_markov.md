@@ -134,3 +134,17 @@ Source-specific PnL не складывается. Каждый fold fit тол�
 разрешает live: следующим шагом будет новый prospective paper-trading horizon.
 Threshold tuning и повторное использование May holdout внутри Stage 4g
 запрещены.
+
+## Amendment 2026-08-13: точная семантика terminal head
+
+Self-review документации уточнил терминологию без изменения computation.
+`transition_pair_candidate` не является одной фиксированной матрицей 66x66:
+его executable state содержит exact current midpoint и одну из 64 дискретных
+transition cells. Таблица хранит только shrunk residual для cell, поэтому
+terminal probability меняется вместе с наблюдаемым midpoint внутри bucket.
+
+Сохранённый `absorption_at_state_mean` — diagnostic representation вероятности
+`WIN/LOSE` при среднем train midpoint cell; entry использует per-decision
+`current_mid + residual`. Price-transition matrix и persistence остаются
+фиксированными train-only Markov quantities. Config, thresholds, decisions и
+canonical result от этого уточнения не меняются.
