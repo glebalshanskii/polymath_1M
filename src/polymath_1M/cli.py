@@ -7,6 +7,7 @@ from .audit.runner import run_profile_audit
 from .audit.storage import build_raw_inventory
 from .collector.replay import replay_run
 from .collector.runner import run_collector
+from .historical.binance import download_binance_context
 from .historical.download import download_kacho_dataset
 from .historical.overlap import run_pmxt_overlap_smoke
 from .screening.calibration import run_stage4b_calibration
@@ -16,6 +17,7 @@ from .screening.openmarket import run_openmarket_sanity
 from .screening.plateau import run_stage4d_calibration
 from .screening.pmxt_dataset import build_stage4_pmxt_dataset
 from .screening.run import run_stage4_screening
+from .screening.time_chart import run_stage4d_time_chart
 from .screening.universe import build_stage4_universe
 from .screening.walkforward import run_stage4c_calibration
 from .strategy.backtest import run_kacho_backtest
@@ -246,6 +248,55 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/charts",
         help="ignored directory for chart, ledger and summary artifacts",
     )
+    binance_context = subparsers.add_parser(
+        "binance-context-download",
+        help="download SHA-256 pinned BTCUSDT context through development only",
+    )
+    binance_context.add_argument(
+        "--config",
+        default="cfg/datasets/binance_btcusdt_1m_202604_202605.json",
+        help="path to the pinned visualization-only Binance config",
+    )
+    binance_context.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory for third-party historical files",
+    )
+    time_chart = subparsers.add_parser(
+        "stage4d-time-chart",
+        help="render Stage 4d BTC outcomes, signals and PnL against UTC time",
+    )
+    time_chart.add_argument(
+        "--config",
+        default="cfg/experiments/stage4d_uniform_plateau.json",
+        help="path to the frozen Stage 4d plateau config",
+    )
+    time_chart.add_argument(
+        "--proposal",
+        required=True,
+        help="path to the selected Stage 4d development proposal",
+    )
+    time_chart.add_argument(
+        "--binance-config",
+        default="cfg/datasets/binance_btcusdt_1m_202604_202605.json",
+        help="pinned Binance BTCUSDT visualization-context config",
+    )
+    time_chart.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory containing the pinned Binance files",
+    )
+    time_chart.add_argument(
+        "--starting-capital",
+        type=float,
+        required=True,
+        help="explicit scenario capital in USDC; no project default is assumed",
+    )
+    time_chart.add_argument(
+        "--output-root",
+        default="outputs/charts",
+        help="ignored directory for chart and exact signal ledgers",
+    )
     return parser
 
 
@@ -312,6 +363,19 @@ def main(argv: Sequence[str] | None = None) -> None:
                 args.config,
                 args.proposal,
                 starting_capital=args.starting_capital,
+                output_root=args.output_root,
+            )
+        )
+    elif args.command == "binance-context-download":
+        print(download_binance_context(args.config, args.data_root))
+    elif args.command == "stage4d-time-chart":
+        print(
+            run_stage4d_time_chart(
+                args.config,
+                args.proposal,
+                args.binance_config,
+                starting_capital=args.starting_capital,
+                data_root=args.data_root,
                 output_root=args.output_root,
             )
         )

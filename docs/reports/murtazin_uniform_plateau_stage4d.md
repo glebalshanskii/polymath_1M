@@ -175,6 +175,53 @@ Run выполнен из clean commit
 proposal по 235 fills и PnL. `holdout_rows_loaded = 0`,
 `holdout_opened = false`.
 
+### Временная шкала, исходы и сигналы
+
+Дополнительно построен exact replay с осью X по decision time в UTC, а не по
+номеру сделки. Он охватывает все 4,608 BTC 5m validation markets с
+2026-04-28 00:04 до 2026-05-13 23:59 UTC и показывает:
+
+1. Binance BTCUSDT 1m proxy и 235 исполненных сделок; форма маркера означает
+   сторону UP/DOWN, цвет — знак PnL, размер — cash position outlay;
+2. Gamma outcome каждого 5m market и выбранную моделью сторону;
+3. model expected terminal payout и ask выбранной стороны;
+4. net edge и Markov persistence вместе с thresholds;
+5. каждый gate и итоговый fill;
+6. cumulative PnL/drawdown и position size во времени.
+
+BTCUSDT здесь только visualization context: это не Chainlink resolution price
+и не feature стратегии. Решение использует Polymarket token prices и
+обученные terminal-payout/Markov statistics. Подробная граница семантики
+зафиксирована в [ADR-0011](../adr/0011-btc-price-is-visual-context.md).
+
+Position sizing также не зависит от probability, edge, persistence или
+support. Target notional всегда 10 USDC; фактический outlay ниже при
+недостаточной top-of-book liquidity и включает platform fee. На графике
+показан outlay 0.17–10.40 USDC.
+
+Воронка независимо прошедших gates: valid snapshot 4,608, support 4,608,
+ask range 806, persistence 4,238, net edge 1,786, executable top 3,790; все
+условия одновременно дали 235 fills. Sequential status waterfall отклонил
+3,802 markets по ask, 135 по persistence, 434 по edge и 2 по liquidity.
+
+Artifacts:
+`outputs/charts/20260813T111500Z_stage4d_stage4c_btc_5m_time_signals/`.
+
+| Artifact | SHA-256 |
+|---|---|
+| `time_pnl_btc_outcomes_signals.png` | `0b93d14bf25e4ec6e1e6c79778d2ae8584548af37530d5274918b43acbd581bf` |
+| `time_pnl_btc_outcomes_signals.svg` | `9dfb01f16f68374b1608fb84f4156984262e27b8f537f7fe6906d6d0d5182053` |
+| `signals.csv` | `4de47fe8884813874003eb061f1e21ea55f54daba581a213584283e93aa365a2` |
+| `btc_context.csv` | `3a79a9acdbac376c333e35a128caf9c8c0c3766b8666c4bd215cecc4da0f7c67` |
+| `summary.json` | `3e1fe382c270691ea678f8803f64b7d595d7802771349c941097424d3fdc9db1` |
+| `run_record.json` | `042f970e8640d5168ba5b63de80c2adc83e0b9b4a3b125f9e41f3d830d8cadf1` |
+
+Run выполнен из clean commit
+`797b50df87ce06f81bcaddff540706f1afd76d3e`; replay воспроизвёл 235 fills,
+`+168.60432879223615 USDC` и max drawdown `102.32681249532243 USDC`.
+Загружено 23,040 минут context только до holdout boundary;
+`holdout_rows_loaded = 0`, `holdout_opened = false`.
+
 ## Артефакты и воспроизводимость
 
 Canonical artifacts:

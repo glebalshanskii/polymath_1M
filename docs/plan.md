@@ -307,6 +307,11 @@ prospective paper trading.
   см. [ADR-0010](adr/0010-live-capital-limits-need-data.md).
 - Loader прочитал 25,344 development и 0 holdout rows; canonical run record
   фиксирует `holdout_opened = false`.
+- Построен новый UTC chart всех 4,608 BTC decisions: BTCUSDT visual proxy,
+  Gamma outcomes, выбранная side, payout forecast, ask, edge, persistence,
+  gates, fills, PnL/drawdown и фактический position outlay. Exact replay снова
+  дал 235 fills и `+168.60 USDC`; источник цены и запрет использовать proxy как
+  feature зафиксированы в [ADR-0011](adr/0011-btc-price-is-visual-context.md).
 
 Подробности: [Stage 4d report](reports/murtazin_uniform_plateau_stage4d.md),
 [ADR-0009](adr/0009-stage4d-uniform-plateau-result.md) и
