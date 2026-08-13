@@ -55,7 +55,7 @@ def load_kacho_gamma_data(
         max_markets=0,
         decision_seconds_before_end=market_config.decision_seconds_before_end,
         transition_horizon_seconds=market_config.transition_horizon_seconds,
-        label_policy="kacho_inferred_development_only",
+        label_policy="external_authoritative_labels",
         execution_latency_seconds=math_ceil_milliseconds(
             market_config.execution_latency_ms
         ),

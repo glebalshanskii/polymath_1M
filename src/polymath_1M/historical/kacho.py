@@ -65,6 +65,7 @@ def _load_markets(
     max_markets: int,
     period_start_s: int | None,
     period_end_exclusive_s: int | None,
+    require_inferred_labels: bool,
 ) -> pa.Table:
     tables: list[pa.Table] = []
     specs = {(item.asset, item.kind): item for item in config.select(assets)}
@@ -76,8 +77,11 @@ def _load_markets(
         table = table.append_column("asset", pa.array([asset] * table.num_rows))
         tables.append(table)
     combined = pa.concat_tables(tables)
-    label_mask = pc.is_in(combined["outcome"], value_set=pa.array(["Up", "Down"]))
-    combined = combined.filter(label_mask)
+    if require_inferred_labels:
+        label_mask = pc.is_in(
+            combined["outcome"], value_set=pa.array(["Up", "Down"])
+        )
+        combined = combined.filter(label_mask)
     if period_start_s is not None:
         combined = combined.filter(
             pc.greater_equal(
@@ -178,10 +182,13 @@ def load_kacho_decision_batch(
     period_start_s: int | None = None,
     period_end_exclusive_s: int | None = None,
 ) -> DecisionBatch:
-    if label_policy != "kacho_inferred_development_only":
+    supported_label_policies = {
+        "kacho_inferred_development_only",
+        "external_authoritative_labels",
+    }
+    if label_policy not in supported_label_policies:
         raise KachoDataError(
-            "Kacho outcomes are inferred; only the explicit development label policy "
-            "is accepted"
+            f"unsupported Kacho label policy: {label_policy}"
         )
     normalized_assets = tuple(asset.upper() for asset in assets)
     dataset_dir, _ = validate_kacho_files(config, data_root, assets=normalized_assets)
@@ -194,6 +201,7 @@ def load_kacho_decision_batch(
         max_markets,
         period_start_s,
         period_end_exclusive_s,
+        label_policy == "kacho_inferred_development_only",
     )
     condition_ids = markets["condition_id"].to_pylist()
     market_end_s = _epoch_seconds(markets["market_end"])
@@ -243,10 +251,16 @@ def load_kacho_decision_batch(
         & (execution_asks > 0).all(dim=1)
         & (execution_asks <= 1).all(dim=1)
     )
-    outcomes = torch.tensor(
-        [1.0 if value == "Up" else 0.0 for value in markets["outcome"].to_pylist()],
-        dtype=torch.float64,
-    )
+    if label_policy == "kacho_inferred_development_only":
+        outcomes = torch.tensor(
+            [
+                1.0 if value == "Up" else 0.0
+                for value in markets["outcome"].to_pylist()
+            ],
+            dtype=torch.float64,
+        )
+    else:
+        outcomes = torch.full((markets.num_rows,), torch.nan, dtype=torch.float64)
     return DecisionBatch(
         condition_ids=tuple(condition_ids),
         assets=tuple(markets["asset"].to_pylist()),
@@ -264,5 +278,5 @@ def load_kacho_decision_batch(
         ask_depth_prices=execution_asks.unsqueeze(2),
         ask_depth_sizes=ask_sizes.unsqueeze(2),
         snapshot_valid=snapshot_valid,
-        label_source="kacho_inferred_development_only",
+        label_source=label_policy,
     )

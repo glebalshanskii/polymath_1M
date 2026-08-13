@@ -28,10 +28,10 @@ class KachoAdapterTest(unittest.TestCase):
             dataset_dir.mkdir(parents=True)
             starts = [
                 datetime(2026, 1, 1, tzinfo=UTC) + timedelta(minutes=5 * i)
-                for i in range(5)
+                for i in range(6)
             ]
             ends = [value + timedelta(minutes=5) for value in starts]
-            ids = [f"condition-{index}" for index in range(5)]
+            ids = [f"condition-{index}" for index in range(6)]
             markets_path = dataset_dir / "btc_markets.parquet"
             pq.write_table(
                 pa.table(
@@ -39,8 +39,8 @@ class KachoAdapterTest(unittest.TestCase):
                         "condition_id": ids,
                         "market_start": starts,
                         "market_end": ends,
-                        "outcome": ["Up", "Down", "Up", "Down", "Up"],
-                        "n_ticks": [300] * 5,
+                        "outcome": ["Up", "Down", "Up", "Down", "Up", None],
+                        "n_ticks": [300] * 6,
                     }
                 ),
                 markets_path,
@@ -117,6 +117,16 @@ class KachoAdapterTest(unittest.TestCase):
                 label_policy="kacho_inferred_development_only",
                 execution_latency_seconds=1,
             )
+            external_batch = load_kacho_decision_batch(
+                config,
+                root,
+                assets=["BTC"],
+                max_markets=0,
+                decision_seconds_before_end=60,
+                transition_horizon_seconds=60,
+                label_policy="external_authoritative_labels",
+                execution_latency_seconds=1,
+            )
 
         self.assertEqual(len(batch), 5)
         self.assertTrue(batch.snapshot_valid.all().item())
@@ -125,6 +135,8 @@ class KachoAdapterTest(unittest.TestCase):
         self.assertEqual(batch.ask_depth_prices.shape, (5, 2, 1))
         self.assertEqual(batch.ask_depth_prices[:, 0, 0].tolist(), [0.44] * 5)
         self.assertEqual(batch.outcome_up.tolist(), [1.0, 0.0, 1.0, 0.0, 1.0])
+        self.assertEqual(len(external_batch), 6)
+        self.assertTrue(external_batch.outcome_up.isnan().all().item())
 
 
 if __name__ == "__main__":
