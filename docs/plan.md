@@ -2,10 +2,10 @@
 
 - Обновлено: 2026-08-13
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Этап 4d завершён `selected_on_development`; holdout не
-  открыт; 24-hour Stage 2 validation идёт параллельно**
-- Следующий deliverable: отдельный frozen one-shot holdout contract только
-  после явного разрешения; Stage 5 пока не разрешён
+- Текущий этап: **Этап 4e завершён; M6 отклонена на early robustness и
+  one-shot holdout; 24-hour Stage 2 validation идёт параллельно**
+- Следующий deliverable: Stage 4f stable-shrinkage protocol и новый
+  prospective confirmation horizon; Stage 5 пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -324,17 +324,15 @@ prospective paper trading.
 [ADR-0009](adr/0009-stage4d-uniform-plateau-result.md) и
 [frozen protocol](protocols/screening/0004_stage4d_uniform_plateau.md).
 
-### Следующий practical шаг: frozen holdout contract
+### Historical note: Stage 4d holdout
 
-Параметры BTC candidate больше не менять на текущем dataset. По прямому
-указанию holdout `[2026-05-14, 2026-05-18)` остаётся закрытым. Его возможный
-one-shot запуск — отдельная задача: сначала committed config с hashes и
-acceptance, затем self-review, и только после явного разрешения один запуск.
-Только historical pass допускается в Stage 5 full-L2 paper trading.
+Параметры BTC candidate не менялись до committed Stage 4e selection. Holdout
+`[2026-05-14, 2026-05-18)` затем был открыт один раз по Stage 4e contract;
+результат описан ниже. Этот interval больше нельзя использовать для tuning.
 
 ### Stage 4e: regime-aware BTC 5m model
 
-Статус: **in progress; development-only; Stage 4d holdout unopened**.
+Статус: **completed; M6 rejected; no paper/live candidate**.
 
 - Зафиксирована последовательность из шести моделей от coarse lookup до
   causal Chainlink-regime logistic model.
@@ -349,18 +347,35 @@ acceptance, затем self-review, и только после явного ра
   движение после decision timestamp. Он сохранён как invalid diagnostic;
   amendment добавляет causal-lagged M6 и запрещает M5 участвовать в selection.
 - Отдельный early Trent robustness experiment расширяет development chronology
-  примерно до 81 дня (около 86 дней до конца всё ещё закрытого Kacho holdout).
+  примерно до 81 дня (около 86 дней до конца Kacho holdout).
   Его approximate best-ask PnL с authoritative Gamma labels и исторической
   quadratic fee curve не складывается с primary Kacho PnL.
 - Primary development выбрал causal-lagged M6 и зафиксировал selected config
-  с one-shot holdout gate; сам holdout пока не открыт.
+  с one-shot holdout gate до открытия test.
+- Early Trent robustness: M6 `-129.61 USDC`, PF `0.640`, DD `209.46`; M0
+  `-58.52`, PF `0.716`, DD `70.83`. Source-specific PnL не pooled с Kacho.
+- One-shot holdout: M6 49 fills, `-33.68 USDC`, PF `0.695`, stress `-39.62`;
+  провалены 4/4 gates. M0 на том же holdout: 76 fills, `+77.07`, PF `2.009`.
+- Chronology доступных источников 2026-02-21—2026-05-18, около 86 дней.
+  Scored validation/test: 6,126 early + 9,351 primary + 1,185 holdout markets.
+- M6 не допускается к paper/live. M0 остаётся baseline, а не candidate, так как
+  early interval отрицателен. См. [ADR-0013](adr/0013-stage4e-regime-model-rejected.md).
 
-Protocol: [Stage 4e regime models](protocols/screening/0005_stage4e_regime_models.md).
+Подробности: [Stage 4e report](reports/murtazin_regime_models_stage4e.md) и
+[protocol](protocols/screening/0005_stage4e_regime_models.md).
+
+### Следующий practical шаг: Stage 4f stable shrinkage
+
+Новый development contract должен использовать authoritative multi-regime
+labels, shrinkage прогноза к M0, feature stability/sign gates и nested
+source-aware walk-forward. Открытый May holdout — только diagnostic. Для
+подтверждения M7 нужен новый fixed prospective paper-trading horizon.
 
 ## Этап 5. Prospective paper trading
 
-Статус: **blocked until a new historical candidate passes holdout; collector
-burn-in may continue independently**.
+Статус: **blocked until Stage 4f selects a cross-regime development candidate
+and freezes a new prospective contract; collector burn-in may continue
+independently**.
 
 ### Работы
 
