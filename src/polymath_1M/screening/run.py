@@ -78,7 +78,9 @@ def _write_json(path: Path, payload: Any) -> None:
     os.replace(temporary, path)
 
 
-def _load_rows(config: ScreeningConfig) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _load_rows(
+    config: ScreeningConfig, *, row_end_exclusive_s: int | None = None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     root = Path(config.data_root)
     manifest_path = root / "pmxt_dataset_manifest.json"
     if not manifest_path.is_file():
@@ -100,12 +102,19 @@ def _load_rows(config: ScreeningConfig) -> tuple[list[dict[str, Any]], dict[str,
         raise ScreeningRunError("PMXT causal coverage is below the frozen 99% gate")
     rows: list[dict[str, Any]] = []
     for item in manifest["hours"]:
+        hour_s = int(
+            datetime.strptime(item["hour"], "%Y-%m-%dT%H")
+            .replace(tzinfo=UTC)
+            .timestamp()
+        )
+        if row_end_exclusive_s is not None and hour_s >= row_end_exclusive_s:
+            continue
         path = Path(item["parquet_path"])
         if not path.is_file() or _sha256(path) != item["parquet_sha256"]:
             raise ScreeningRunError(f"PMXT checkpoint hash mismatch: {path}")
         rows.extend(pq.read_table(path).to_pylist())
     rows.sort(key=lambda row: (row["market_start_ms"], row["condition_id"]))
-    if len(rows) != int(manifest["market_count"]):
+    if row_end_exclusive_s is None and len(rows) != int(manifest["market_count"]):
         raise ScreeningRunError("PMXT manifest market count mismatch")
     return rows, manifest
 

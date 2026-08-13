@@ -51,6 +51,8 @@ class GridMetrics:
     fill_count: torch.Tensor
     fill_fraction: torch.Tensor
     net_pnl: torch.Tensor
+    gross_profit: torch.Tensor
+    gross_loss: torch.Tensor
     profit_factor: torch.Tensor
     max_drawdown: torch.Tensor
     half1_pnl: torch.Tensor
@@ -241,6 +243,8 @@ def _grid_metrics(
         fill_count=fills,
         fill_fraction=fills.to(dtype=pnl.dtype) / data.batch.market_start_s.numel(),
         net_pnl=net,
+        gross_profit=positive,
+        gross_loss=negative,
         profit_factor=profit_factor,
         max_drawdown=maximum_drawdown,
         half1_pnl=pnl[:, :half].sum(dim=1),

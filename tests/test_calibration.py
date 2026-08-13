@@ -60,6 +60,8 @@ class CalibrationTest(unittest.TestCase):
             fill_count=torch.tensor([20, 19, 20]),
             fill_fraction=torch.tensor([0.2, 0.19, 0.2], dtype=torch.float64),
             net_pnl=torch.tensor([10.0, 10.0, -1.0], dtype=torch.float64),
+            gross_profit=torch.tensor([20.0, 20.0, 20.0], dtype=torch.float64),
+            gross_loss=torch.tensor([10.0, 10.0, 21.0], dtype=torch.float64),
             profit_factor=torch.tensor([1.2, 1.2, 1.2], dtype=torch.float64),
             max_drawdown=torch.tensor([5.0, 5.0, 5.0], dtype=torch.float64),
             half1_pnl=torch.tensor([4.0, 4.0, 4.0], dtype=torch.float64),
