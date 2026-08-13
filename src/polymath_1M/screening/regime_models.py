@@ -878,15 +878,20 @@ def _render_variant(path: Path, result: VariantResult, config: RegimeConfig) -> 
         col=1,
         secondary_y=True,
     )
-    figure.add_vrect(
-        x0=datetime.fromtimestamp(config.bad_regime_start_s, tz=UTC),
-        x1=datetime.fromtimestamp(config.bad_regime_end_exclusive_s, tz=UTC),
-        fillcolor="red",
-        opacity=0.08,
-        line_width=0,
-        row="all",
-        col=1,
-    )
+    if (
+        timestamps.numel()
+        and int(timestamps[0].item()) < config.bad_regime_end_exclusive_s
+        and int(timestamps[-1].item()) >= config.bad_regime_start_s
+    ):
+        figure.add_vrect(
+            x0=datetime.fromtimestamp(config.bad_regime_start_s, tz=UTC),
+            x1=datetime.fromtimestamp(config.bad_regime_end_exclusive_s, tz=UTC),
+            fillcolor="red",
+            opacity=0.08,
+            line_width=0,
+            row="all",
+            col=1,
+        )
     figure.update_layout(
         title=(
             f"Stage 4e {result.variant}: PnL и диагностика | "

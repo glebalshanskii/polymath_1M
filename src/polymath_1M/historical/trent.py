@@ -269,7 +269,18 @@ def load_trent_decision_batch(
                 down_best_bid,
                 down_best_ask,
                 down_mid,
-                down_ask_size_total
+                down_ask_size_total,
+                up_mid IS NOT NULL AS previous_valid,
+                up_best_bid IS NOT NULL
+                    AND up_best_ask IS NOT NULL
+                    AND up_mid IS NOT NULL
+                    AND down_best_bid IS NOT NULL
+                    AND down_best_ask IS NOT NULL
+                    AND down_mid IS NOT NULL AS top_valid,
+                up_best_ask IS NOT NULL
+                    AND up_ask_size_total IS NOT NULL
+                    AND down_best_ask IS NOT NULL
+                    AND down_ask_size_total IS NOT NULL AS execution_valid
             FROM read_parquet('{glob}', filename=true)
         )
         SELECT
@@ -278,45 +289,59 @@ def load_trent_decision_batch(
             count(*) AS n_ticks,
             arg_max(up_mid, ts) FILTER (
                 WHERE ts <= market_start_s * 1000 + {previous_offset_ms}
+                  AND previous_valid
             ) AS previous_mid_up,
             max(ts) FILTER (
                 WHERE ts <= market_start_s * 1000 + {previous_offset_ms}
+                  AND previous_valid
             ) AS previous_ts,
             arg_max(up_best_bid, ts) FILTER (
                 WHERE ts <= market_start_s * 1000 + {decision_offset_ms}
+                  AND top_valid
             ) AS current_bid_up,
             arg_max(up_best_ask, ts) FILTER (
                 WHERE ts <= market_start_s * 1000 + {decision_offset_ms}
+                  AND top_valid
             ) AS current_ask_up,
             arg_max(up_mid, ts) FILTER (
                 WHERE ts <= market_start_s * 1000 + {decision_offset_ms}
+                  AND top_valid
             ) AS current_mid_up,
             arg_max(down_best_bid, ts) FILTER (
                 WHERE ts <= market_start_s * 1000 + {decision_offset_ms}
+                  AND top_valid
             ) AS current_bid_down,
             arg_max(down_best_ask, ts) FILTER (
                 WHERE ts <= market_start_s * 1000 + {decision_offset_ms}
+                  AND top_valid
             ) AS current_ask_down,
             arg_max(down_mid, ts) FILTER (
                 WHERE ts <= market_start_s * 1000 + {decision_offset_ms}
+                  AND top_valid
             ) AS current_mid_down,
             max(ts) FILTER (
                 WHERE ts <= market_start_s * 1000 + {decision_offset_ms}
+                  AND top_valid
             ) AS current_ts,
             arg_min(up_best_ask, ts) FILTER (
                 WHERE ts >= market_start_s * 1000 + {execution_offset_ms}
+                  AND execution_valid
             ) AS execution_ask_up,
             arg_min(up_ask_size_total, ts) FILTER (
                 WHERE ts >= market_start_s * 1000 + {execution_offset_ms}
+                  AND execution_valid
             ) AS execution_size_up,
             arg_min(down_best_ask, ts) FILTER (
                 WHERE ts >= market_start_s * 1000 + {execution_offset_ms}
+                  AND execution_valid
             ) AS execution_ask_down,
             arg_min(down_ask_size_total, ts) FILTER (
                 WHERE ts >= market_start_s * 1000 + {execution_offset_ms}
+                  AND execution_valid
             ) AS execution_size_down,
             min(ts) FILTER (
                 WHERE ts >= market_start_s * 1000 + {execution_offset_ms}
+                  AND execution_valid
             ) AS execution_ts,
             arg_max(up_mid, ts) AS terminal_mid_up
         FROM raw

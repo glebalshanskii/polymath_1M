@@ -21,6 +21,7 @@ from .screening.openmarket import run_openmarket_sanity
 from .screening.plateau import run_stage4d_calibration
 from .screening.pmxt_dataset import build_stage4_pmxt_dataset
 from .screening.regime_models import run_stage4e_development
+from .screening.regime_robustness import run_stage4e_early_robustness
 from .screening.run import run_stage4_screening
 from .screening.time_chart import run_stage4d_time_chart
 from .screening.universe import build_stage4_universe
@@ -354,6 +355,25 @@ def build_parser() -> argparse.ArgumentParser:
         default="data/historical",
         help="ignored directory for third-party historical files",
     )
+    early_robustness = subparsers.add_parser(
+        "stage4e-early-robustness",
+        help="compare Stage 4e baseline/candidate on the early Trent source",
+    )
+    early_robustness.add_argument(
+        "--config",
+        default="cfg/experiments/stage4e_trent_robustness.json",
+        help="path to the frozen source-specific robustness config",
+    )
+    early_robustness.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory containing pinned Trent and Chainlink inputs",
+    )
+    early_robustness.add_argument(
+        "--output-root",
+        default="outputs/regime_models",
+        help="ignored directory for source-specific robustness artifacts",
+    )
     return parser
 
 
@@ -449,3 +469,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
     elif args.command == "trent-steps-download":
         print(download_trent_steps(args.config, args.data_root))
+    elif args.command == "stage4e-early-robustness":
+        print(
+            run_stage4e_early_robustness(
+                args.config,
+                data_root=args.data_root,
+                output_root=args.output_root,
+            )
+        )
