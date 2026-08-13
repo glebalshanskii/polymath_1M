@@ -378,8 +378,9 @@ prospective paper trading.
   не открывался.
 - `core_tau87`: 0 signals на обоих sources; maximum eligible-range gap только
   `0.0124/0.0345`, ниже 5¢.
-- `b27_tau75`: 6,846 Kacho fills, `-52,591.90 USDC`, PF `0.309`; 3,770 Trent
-  fills, `-18,189.58`, PF `0.600`. Все 9/9 folds отрицательны; результат
+- `b27_tau75`: 6,846/6,840 Kacho signals/fills, `-52,685.63 USDC`, PF
+  `0.307`; 3,770/3,744 Trent signals/fills, `-18,226.35`, PF `0.598`.
+  Все 9/9 folds отрицательны; результат
   отрицателен даже до fees и execution haircut.
 - Причина: one-step price-state probability `P[i,j*]` не является terminal
   payout probability и не сопоставима с ask. Широкий range систематически

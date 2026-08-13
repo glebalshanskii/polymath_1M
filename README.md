@@ -100,9 +100,9 @@ early result. В проекте пока нет стратегии для paper/
 Этап 4f наконец проверил опубликованную Markov-формулу буквально, с
 `j*=argmax(P[i])` и destination persistence `P[j*,j*]`. Общий `tau=0.87`
 дал 0 signals на 15,477 out-of-sample decisions. Строка третьего бота
-`tau=0.75` дала 10,616 fills, но все 9/9 folds отрицательны:
-Kacho `-52,591.90 USDC`, PF 0.309; отдельный Trent result `-18,189.58`,
-PF 0.600. Формула смешивает вероятность следующего price state с terminal
+`tau=0.75` дала 10,616 signals и 10,584 fills, но все 9/9 folds отрицательны:
+Kacho `-52,685.63 USDC`, PF 0.307; отдельный Trent result `-18,226.35`,
+PF 0.598. Формула смешивает вероятность следующего price state с terminal
 payout probability и создаёт ложный edge на дешёвых tokens. Оба варианта
 отклонены; детали — в
 [Stage 4f report](docs/reports/murtazin_literal_markov_stage4f.md).

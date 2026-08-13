@@ -27,13 +27,16 @@ $$
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `core_tau87`, Kacho | 9,351 | 0 / 0 | 0 | — | 0 | — | — |
 | `core_tau87`, Trent | 6,126 | 0 / 0 | 0 | — | 0 | — | — |
-| `b27_tau75`, Kacho | 9,351 | 6,846 / 6,846 | -52,591.90 | 0.309 | -71,973.39 | 5.74% | -65.97% |
-| `b27_tau75`, Trent | 6,126 | 3,770 / 3,770 | -18,189.58 | 0.600 | -29,112.79 | 8.97% | -36.92% |
+| `b27_tau75`, Kacho | 9,351 | 6,846 / 6,840 | -52,685.63 | 0.307 | -72,065.17 | 5.67% | -66.14% |
+| `b27_tau75`, Trent | 6,126 | 3,770 / 3,744 | -18,226.35 | 0.598 | -29,142.07 | 8.73% | -37.20% |
 
 Все шесть Kacho folds и все три Trent folds отрицательны. PnL двух sources не
 складывается: Kacho использует exact-second L2 и inferred development labels,
 Trent — authoritative Gamma labels, approximate total-ask depth и legacy
 quadratic fee curve.
+
+После causal dynamic worst-price limit 6 Kacho и 26 Trent signals не получили
+fill; ни один fill не превысил заранее вычисленный limit.
 
 ## Что именно реализовано
 
@@ -75,12 +78,12 @@ self-transition probability. Формула начинает считать эт
 
 | Диагностика | Kacho | Trent |
 |---|---:|---:|
-| Average ask | 0.0834 | 0.1007 |
-| Median ask | 0.0600 | 0.0790 |
-| Average `P[i,j*]` | 0.8196 | 0.7926 |
-| Average computed gap | 0.7362 | 0.6920 |
+| Average ask | 0.0833 | 0.0993 |
+| Median ask | 0.0600 | 0.0700 |
+| Average `P[i,j*]` | 0.8200 | 0.7956 |
+| Average computed gap | 0.7367 | 0.6962 |
 | Average `P[j*,j*]` | 0.8958 | 0.9065 |
-| UP/DOWN fills | 3,392 / 3,454 | 1,893 / 1,877 |
+| UP/DOWN fills | 3,389 / 3,451 | 1,877 / 1,867 |
 
 Это не directional side bug: стороны почти сбалансированы. Ошибка находится
 в смысле `p_hat`. Вероятность остаться в price bucket в следующую минуту не
@@ -88,43 +91,47 @@ self-transition probability. Формула начинает считать эт
 
 Даже ledger без platform fee и execution haircut остаётся отрицательным:
 
-- Kacho gross-before-costs: `-29,566.28 USDC`, или `-52.15%` entry cost;
-- Trent gross-before-costs: `-6,617.10 USDC`, или `-17.55%` entry cost.
+- Kacho gross-before-costs: `-29,664.60 USDC`, или `-52.37%` entry cost;
+- Trent gross-before-costs: `-6,670.78 USDC`, или `-17.82%` entry cost.
 
 Fees и особенно 1¢/share haircut увеличивают потери дешёвых tokens, потому что
-10 USDC покупают в среднем 283–290 shares, но не являются первопричиной.
+10 USDC покупают в среднем 283–292 shares, но не являются первопричиной.
 
 ## Artifacts и reproducibility
 
 Run:
-`outputs/literal_markov/20260813T145940Z_stage4f_literal_markov_btc5m_20260221_20260514/`
+`outputs/literal_markov/20260813T150135Z_stage4f_literal_markov_btc5m_20260221_20260514/`
 
 Главные файлы:
 
-- `result.json` — status и все source/fold summaries;
-- `run_record.json` — code/config/data/hardware provenance;
+- [`result.json`](../../outputs/literal_markov/20260813T150135Z_stage4f_literal_markov_btc5m_20260221_20260514/result.json) — status и все source/fold summaries;
+- [`run_record.json`](../../outputs/literal_markov/20260813T150135Z_stage4f_literal_markov_btc5m_20260221_20260514/run_record.json) — code/config/data/hardware provenance;
 - `<source>/<variant>/decisions.csv` — полный decision ledger;
 - `<source>/<variant>/fold_metrics.csv` и `summary.json`;
-- `<source>/<variant>/diagnostics.html` — self-contained Plotly;
-- `<source>/transition_matrices.html` и per-fold matrix JSON.
+- `<source>/<variant>/diagnostics.html` — self-contained Plotly, включая
+  [Kacho `core_tau87`](../../outputs/literal_markov/20260813T150135Z_stage4f_literal_markov_btc5m_20260221_20260514/kacho_primary/core_tau87/diagnostics.html) и
+  [Kacho `b27_tau75`](../../outputs/literal_markov/20260813T150135Z_stage4f_literal_markov_btc5m_20260221_20260514/kacho_primary/b27_tau75/diagnostics.html);
+- transition heatmaps:
+  [Kacho](../../outputs/literal_markov/20260813T150135Z_stage4f_literal_markov_btc5m_20260221_20260514/kacho_primary/transition_matrices.html) и
+  [Trent](../../outputs/literal_markov/20260813T150135Z_stage4f_literal_markov_btc5m_20260221_20260514/trent_early/transition_matrices.html), плюс per-fold matrix JSON.
 
 Hashes:
 
 | Artifact | SHA-256 |
 |---|---|
-| `result.json` | `2b6eaac619ceb2c3e7a0e25df2be98fca48bfe38b3ff03c78fb319dac6319325` |
-| `run_record.json` | `2098305989638181b7a0a69f72aa39399616afd9dc84cee0cde5dcee4a9ccdc5` |
-| Kacho matrices HTML | `562a6a2f5df9626dbaa6e41d9303b35989abe9bd4163d87f1b3c53b22d0be69a` |
-| Trent matrices HTML | `d2ef5c9916b00af846857fc55c412512d0f053ea4919661668e5f146ad1a495a` |
+| `result.json` | `d2cc9fbd150fec411a3e78301c3ed2422c4b5338781f989ba5e89d84479508a5` |
+| `run_record.json` | `91ceaab1d770c9a484828f1a2a969e6bc1350bae6276c2efd7d5e9f831989a87` |
+| Kacho matrices HTML | `a7daa64cc0845c26c152f761860a58095a8412e3216f150f40643061f83c3914` |
+| Trent matrices HTML | `22e27294153e0ace0f97c960e00d44ab3ceed54668f4f444884907ea9092105e` |
 
-- Code commit: `72b050c7b2f35cd9228ad1c8611db6f085f4f6d2`;
+- Code commit: `0b9c4267683dcf75cfca484adbcc35f38a23941b`;
 - canonical config SHA-256:
   `4175758c4c10c26ae454abdc8d531679469b14764fd35b57ded476f4377ec04c`;
 - config file SHA-256:
   `17213fd39c2dda280c7e8a77b6d8136770eead4899640434690c3050b0d146e8`;
 - seed `20260813`, `torch 2.13.0+cu130`, CUDA 13.0, float64;
 - GPU: NVIDIA GeForce RTX 3080 Ti Laptop GPU;
-- runtime: 16.19 seconds;
+- runtime: 15.40 seconds;
 - `source_dirty=false`, `selection_performed=false`, `holdout_opened=false`.
 
 ## Вывод и следующий вариант
