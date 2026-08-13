@@ -205,19 +205,19 @@ ask range 806, persistence 4,238, net edge 1,786, executable top 3,790; все
 3,802 markets по ask, 135 по persistence, 434 по edge и 2 по liquidity.
 
 Artifacts:
-`outputs/charts/20260813T111325Z_stage4d_stage4c_btc_5m_time_signals/`.
+`outputs/charts/20260813T111500Z_stage4d_stage4c_btc_5m_time_signals/`.
 
 | Artifact | SHA-256 |
 |---|---|
-| `time_pnl_btc_outcomes_signals.png` | `459b6110d65e9dce288aa7e4f7f3a35795bc9047d025457aa24118d725b7393f` |
-| `time_pnl_btc_outcomes_signals.svg` | `66f2f10b1fef40f854f0ef043da340a6d4d0f4c4130dd8b1f9b78014812d7cd8` |
+| `time_pnl_btc_outcomes_signals.png` | `0b93d14bf25e4ec6e1e6c79778d2ae8584548af37530d5274918b43acbd581bf` |
+| `time_pnl_btc_outcomes_signals.svg` | `9dfb01f16f68374b1608fb84f4156984262e27b8f537f7fe6906d6d0d5182053` |
 | `signals.csv` | `4de47fe8884813874003eb061f1e21ea55f54daba581a213584283e93aa365a2` |
 | `btc_context.csv` | `3a79a9acdbac376c333e35a128caf9c8c0c3766b8666c4bd215cecc4da0f7c67` |
 | `summary.json` | `3e1fe382c270691ea678f8803f64b7d595d7802771349c941097424d3fdc9db1` |
-| `run_record.json` | `d4d80c278860719100ab5d1d24f64f4053d222525a7d9baf06d492d1e8f1572b` |
+| `run_record.json` | `042f970e8640d5168ba5b63de80c2adc83e0b9b4a3b125f9e41f3d830d8cadf1` |
 
 Run выполнен из clean commit
-`ecd3248a183fb6c759a8c854c9239be7aba44ac8`; replay воспроизвёл 235 fills,
+`797b50df87ce06f81bcaddff540706f1afd76d3e`; replay воспроизвёл 235 fills,
 `+168.60432879223615 USDC` и max drawdown `102.32681249532243 USDC`.
 Загружено 23,040 минут context только до holdout boundary;
 `holdout_rows_loaded = 0`, `holdout_opened = false`.
