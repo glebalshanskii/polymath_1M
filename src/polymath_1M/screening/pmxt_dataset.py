@@ -38,19 +38,29 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _remote_metadata(url: str) -> dict[str, Any]:
+def _remote_metadata(
+    url: str, *, expected: dict[str, Any] | None = None
+) -> dict[str, Any]:
     request = Request(url, method="HEAD", headers={"User-Agent": "polymath-1m/1"})
     error: Exception | None = None
     for attempt in range(3):
         try:
             with urlopen(request, timeout=30) as response:
-                return {
+                observed = {
                     "url": url,
                     "status": response.status,
                     "bytes": int(response.headers.get("Content-Length", 0)),
                     "etag": response.headers.get("ETag"),
                     "last_modified": response.headers.get("Last-Modified"),
                 }
+                if expected is not None and (
+                    observed["bytes"] != expected.get("bytes")
+                    or observed["etag"] != expected.get("etag")
+                ):
+                    raise ScreeningDatasetError(
+                        f"PMXT source object changed during build: {url}"
+                    )
+                return observed
         except OSError as exc:
             error = exc
             if attempt < 2:
@@ -351,13 +361,39 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
     for item in inventory:
         for reason, count in item["reason_counts"].items():
             reason_counts[reason] += int(count)
+    source_lock_path = root / "pmxt_source_lock.json"
+    expected_by_url: dict[str, dict[str, Any]] = {}
+    if source_lock_path.is_file():
+        source_lock = json.loads(source_lock_path.read_text(encoding="utf-8"))
+        if source_lock.get("data_contract_sha256") != config.data_contract_sha256:
+            raise ScreeningDatasetError("PMXT source lock belongs to another dataset")
+        expected_by_url = {
+            str(item["url"]): item for item in source_lock.get("sources", [])
+        }
+    urls = [str(item["source_url"]) for item in inventory]
     with ThreadPoolExecutor(max_workers=config.pmxt_workers) as executor:
-        source_inventory = list(
-            executor.map(
-                _remote_metadata,
-                [str(item["source_url"]) for item in inventory],
-            )
+        futures = {
+            executor.submit(
+                _remote_metadata, url, expected=expected_by_url.get(url)
+            ): url
+            for url in urls
+        }
+        source_inventory = [future.result() for future in as_completed(futures)]
+    source_inventory.sort(key=lambda item: item["url"])
+    if not source_lock_path.is_file():
+        source_lock = {
+            "schema_version": 1,
+            "data_contract_sha256": config.data_contract_sha256,
+            "created_at": datetime.now(UTC).isoformat(),
+            "sources": source_inventory,
+        }
+        temporary_source_lock = source_lock_path.with_suffix(".json.part")
+        temporary_source_lock.write_text(
+            json.dumps(source_lock, ensure_ascii=False, sort_keys=True, indent=2)
+            + "\n",
+            encoding="utf-8",
         )
+        os.replace(temporary_source_lock, source_lock_path)
     manifest = {
         "schema_version": 1,
         "experiment_id": config.experiment_id,
