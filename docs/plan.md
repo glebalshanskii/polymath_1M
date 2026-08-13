@@ -312,6 +312,13 @@ prospective paper trading.
   gates, fills, PnL/drawdown и фактический position outlay. Exact replay снова
   дал 235 fills и `+168.60 USDC`; источник цены и запрет использовать proxy как
   feature зафиксированы в [ADR-0011](adr/0011-btc-price-is-visual-context.md).
+- Chart заменён на self-contained interactive Plotly HTML. Polymarket
+  Chainlink-family `BTC/USD` и независимый Binance `BTCUSDT` теперь показаны
+  первыми двумя панелями строго друг под другом. Frozen frontend-history
+  archive содержит 23,040 development minutes и 384 hashed raw responses;
+  exact replay сохранил 235 fills и `+168.60 USDC`, holdout не открывался.
+  Для следующих project charts Plotly является default; см.
+  [ADR-0012](adr/0012-plotly-dual-price-visualizations.md).
 
 Подробности: [Stage 4d report](reports/murtazin_uniform_plateau_stage4d.md),
 [ADR-0009](adr/0009-stage4d-uniform-plateau-result.md) и
