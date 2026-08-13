@@ -332,6 +332,22 @@ one-shot запуск — отдельная задача: сначала commit
 acceptance, затем self-review, и только после явного разрешения один запуск.
 Только historical pass допускается в Stage 5 full-L2 paper trading.
 
+### Stage 4e: regime-aware BTC 5m model
+
+Статус: **in progress; development-only; Stage 4d holdout unopened**.
+
+- Зафиксирована последовательность из шести моделей от coarse lookup до
+  causal Chainlink-regime logistic model.
+- Primary walk-forward расширен на весь совместимый Kacho BTC interval:
+  около 55 дней, шесть validation folds вместо прежних 16 validation days.
+- Каждый промежуточный вариант обязан сохранить численные и Plotly artifacts;
+  нельзя удалять отрицательные результаты.
+- Selection учитывает PnL, PF, fills, calibration, max drawdown, worst 24h и
+  известный April failure window. Holdout открывается только после committed
+  development proposal и self-review.
+
+Protocol: [Stage 4e regime models](protocols/screening/0005_stage4e_regime_models.md).
+
 ## Этап 5. Prospective paper trading
 
 Статус: **blocked until a new historical candidate passes holdout; collector
