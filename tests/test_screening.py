@@ -5,6 +5,7 @@ import unittest
 import torch
 
 from polymath_1M.screening.config import load_screening_config
+from polymath_1M.screening.pmxt_dataset import _valid_top_row
 from polymath_1M.screening.run import chronological_market_splits
 
 
@@ -24,6 +25,26 @@ class ScreeningTest(unittest.TestCase):
                 memberships.setdefault(int(starts[index].item()), set()).add(name)
         self.assertTrue(all(len(names) == 1 for names in memberships.values()))
         self.assertEqual(set(splits), {"train", "validation", "test"})
+
+    def test_causal_top_accepts_zero_bid_but_rejects_zero_ask(self) -> None:
+        snapshots = {
+            (cutoff, outcome): {
+                "best_bid": 0.0 if outcome == "Up" else 0.4,
+                "best_ask": 0.01 if outcome == "Up" else 0.5,
+                "receive_timestamp_ms": index,
+            }
+            for index, (cutoff, outcome) in enumerate(
+                (cutoff, outcome)
+                for cutoff in ("previous", "signal", "execution")
+                for outcome in ("Up", "Down")
+            )
+        }
+        valid = _valid_top_row({"condition_id": "condition"}, snapshots)
+        self.assertTrue(valid["snapshot_valid"])
+        snapshots[("execution", "Up")]["best_ask"] = 0.0
+        invalid = _valid_top_row({"condition_id": "condition"}, snapshots)
+        self.assertFalse(invalid["snapshot_valid"])
+        self.assertEqual(invalid["invalid_reason"], "invalid_causal_top")
 
 
 if __name__ == "__main__":
