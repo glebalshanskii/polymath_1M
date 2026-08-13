@@ -148,3 +148,25 @@ costs и gates не изменяются. Также исправляется pr
 CSV/Plotly первого run перезаписал строковый `side` числовым code; trading
 decision и PnL от этого не менялись. Повторный run создаёт новый artifact и не
 удаляет исходный.
+
+## Amendment 2026-08-13: ранний source-specific robustness
+
+Для расширения development evidence до почти трёх календарных месяцев
+добавляется отдельный Trent McKelly BTC 5m experiment за
+`2026-02-21 15:55 — 2026-03-24 20:10 UTC`. Вместе с Kacho development это
+даёт около 81 дня между первым и последним development observation; доступный
+Kacho holdout доводит общую границу источников примерно до 86 дней, но остаётся
+закрытым до committed selection.
+
+Trent run не объединяется с primary PnL и не меняет primary selection. Он
+сравнивает только M0 и causal M6 на трёх expanding folds. Snapshot берётся как
+последняя запись не позже decision time, execution — первая запись не раньше
+`decision + 1s`. Source публикует best ask и только total ask depth, поэтому
+10 USDC считаются доступными по best ask лишь когда total ask notional не меньше
+10 USDC. Это optimistic top-level allocation approximation; итог маркируется
+`source_specific_indicative`, а не executable full-L2 evidence. Outcome
+development-only выводится из финального token mid.
+
+Chainlink features берутся из отдельного pinned minute archive с тем же
+causal lag M6. Trent repository pin:
+`6be20463ce33795178c121e7bd15ed428904b5bd`, license `CC-BY-SA-4.0`.

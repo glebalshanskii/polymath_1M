@@ -348,6 +348,9 @@ acceptance, затем self-review, и только после явного ра
 - Первый M5 run выявил minute-bar look-ahead: timestamped point содержал
   движение после decision timestamp. Он сохранён как invalid diagnostic;
   amendment добавляет causal-lagged M6 и запрещает M5 участвовать в selection.
+- Отдельный early Trent robustness experiment расширяет development chronology
+  примерно до 81 дня (около 86 дней до конца всё ещё закрытого Kacho holdout).
+  Его approximate best-ask PnL не складывается с primary Kacho PnL.
 
 Protocol: [Stage 4e regime models](protocols/screening/0005_stage4e_regime_models.md).
 
