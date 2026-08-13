@@ -5,10 +5,28 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from polymath_1M.historical.trent import TrentDataError, load_trent_config
+from polymath_1M.historical.trent import (
+    TrentDataError,
+    _local_record,
+    load_trent_config,
+)
 
 
 class TrentAdapterTest(unittest.TestCase):
+    def test_local_record_accepts_only_nonempty_atomic_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "steps.parquet"
+            self.assertIsNone(_local_record("market/steps.parquet", target))
+            target.write_bytes(b"")
+            self.assertIsNone(_local_record("market/steps.parquet", target))
+            target.write_bytes(b"complete")
+            record = _local_record("market/steps.parquet", target)
+            self.assertIsNotNone(record)
+            assert record is not None
+            self.assertEqual(record["path"], "market/steps.parquet")
+            self.assertEqual(record["bytes"], 8)
+            self.assertEqual(len(record["sha256"]), 64)
+
     def test_frozen_config_pins_source_and_early_period(self) -> None:
         config = load_trent_config("cfg/datasets/trent_btc5m_steps_stage4e.json")
         self.assertEqual(config.expected_files, 8_803)

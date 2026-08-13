@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError, URLError
 
 import duckdb
 import torch
@@ -132,6 +134,16 @@ def _repository_paths(config: TrentConfig) -> list[str]:
     return paths
 
 
+def _local_record(relative: str, target: Path) -> dict[str, Any] | None:
+    if not target.is_file() or target.stat().st_size == 0:
+        return None
+    return {
+        "path": relative,
+        "bytes": target.stat().st_size,
+        "sha256": _sha256(target),
+    }
+
+
 def _download_one(config: TrentConfig, relative: str, target: Path) -> dict[str, Any]:
     target.parent.mkdir(parents=True, exist_ok=True)
     url = f"{config.base_url}/{config.revision}/{urllib.parse.quote(relative)}"
@@ -139,18 +151,35 @@ def _download_one(config: TrentConfig, relative: str, target: Path) -> dict[str,
         url, headers={"User-Agent": "polymath_1M/0.1 pinned-source-downloader"}
     )
     temporary = target.with_suffix(".parquet.part")
-    with (
-        urllib.request.urlopen(request, timeout=120) as response,
-        temporary.open("wb") as stream,
-    ):
-        while chunk := response.read(1024 * 1024):
-            stream.write(chunk)
-    os.replace(temporary, target)
-    return {
-        "path": relative,
-        "bytes": target.stat().st_size,
-        "sha256": _sha256(target),
-    }
+    for attempt in range(6):
+        try:
+            with (
+                urllib.request.urlopen(request, timeout=120) as response,
+                temporary.open("wb") as stream,
+            ):
+                while chunk := response.read(1024 * 1024):
+                    stream.write(chunk)
+            os.replace(temporary, target)
+            record = _local_record(relative, target)
+            if record is None:
+                raise TrentDataError(f"downloaded empty Trent file: {relative}")
+            return record
+        except HTTPError as exc:
+            retryable = exc.code == 429 or 500 <= exc.code < 600
+            if not retryable or attempt == 5:
+                raise
+            retry_after = exc.headers.get("Retry-After")
+            delay = (
+                float(retry_after)
+                if retry_after is not None and retry_after.isdecimal()
+                else 2**attempt
+            )
+        except URLError:
+            if attempt == 5:
+                raise
+            delay = 2**attempt
+        time.sleep(min(max(delay, 1.0), 30.0))
+    raise AssertionError("unreachable")
 
 
 def download_trent_steps(
@@ -179,6 +208,8 @@ def download_trent_steps(
             and _sha256(target) == record["sha256"]
         ):
             records[relative] = record
+        elif record is None and (local_record := _local_record(relative, target)):
+            records[relative] = local_record
         else:
             pending.append((relative, target))
     with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
