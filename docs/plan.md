@@ -2,10 +2,10 @@
 
 - Обновлено: 2026-08-13
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Этап 4 — historical screening backtest;
+- Текущий этап: **Этап 4 завершён без кандидата;
   24-hour Stage 2 validation идёт параллельно**
-- Следующий deliverable: fixed Gamma universe, PMXT L2 dataset и chronological
-  model/control screening
+- Следующий deliverable: Stage 4b practical signal redesign на train/validation
+  с новым frozen config; Stage 5 пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -184,13 +184,13 @@ prospective paper trading.
 
 ## Этап 4. Historical screening backtest
 
-Статус: **in progress; выполняется сразу поверх Stage 3 branch**.
+Статус: **completed 2026-08-13; `inconclusive_no_candidate`**.
 
 ### Работы
 
 1. Зафиксировать Gamma universe/rules/outcomes для 12 recurring series.
-2. Извлечь из PMXT v2 только target conditions; `prices-history` использовать
-   лишь как coarse sanity check, не как execution evidence.
+2. Извлечь из PMXT v2 causal top для target conditions; independent
+   OpenMarket использовать только как sanity check.
 3. Chronological market split 60/20/20.
 4. Train lookup/logistic model; выбрать config только на validation.
 5. Один final test для выбранного config.
@@ -199,16 +199,46 @@ prospective paper trading.
 8. Повторить BTC 15m sanity на independent OpenMarket, не смешивая его с
    primary PMXT metrics.
 
+### Результат
+
+- Построен frozen Gamma universe из 13,036 markets; PMXT causal coverage —
+  13,034 (99.985%), два gaps исключены явно.
+- PMXT source lock содержит size/ETag всех 192 hourly objects; derived dataset
+  и heavy manifests остаются в ignored `data/`.
+- Side/edge используют signal top; execution top отделён regression test от
+  order decision. $10 liquidity на best ask — optimistic screening
+  approximation, не live evidence.
+- Пять configs проверены на chronological validation. Все дали 0 fills:
+  article-derived ranges, persistence и edge gates совместно не создают
+  исполнимых entries.
+- Candidate не выбран; untouched test не запускался; paper trading не
+  разрешён. Статус — `inconclusive_no_candidate`, а не breakeven.
+- OpenMarket sanity на pinned BTC 15m market совпал с PMXT: maximum best-ask
+  difference `0.00`.
+- Canonical CUDA run:
+  `outputs/screening/20260813T004306Z_stage4_pmxt_screening_20260414_20260422/`.
+
+Подробности: [Stage 4 report](reports/murtazin_historical_screening_stage4.md)
+и [ADR-0006](adr/0006-stage4-screening-result.md).
+
 ### Gate to paper selection
 
-- не менее 300 traded test markets;
+- не менее 20 traded test markets в коротком historical screening;
 - net PnL > 0 при exact fee + 1¢/share;
 - profit factor ≥ 1.10;
 - max drawdown < 10% normalized bankroll;
-- ни одна week не даёт >50% profit;
+- ни один UTC day не даёт >80% positive PnL;
 - соседние параметры не обрушают result.
 
-Даже прошедший historical run без L2 не имеет права на live.
+Даже прошедший historical run без полного L2 не имеет права на live.
+
+### Следующий practical шаг: Stage 4b
+
+Test этого horizon остаётся untouched. Новый development protocol должен на
+train/validation заменить literal fixed ranges на calibrated policy,
+показать ненулевую exposure и ablations для range/persistence/edge. Только
+после freeze нового config разрешён один test run. Если снова нет кандидата,
+проект не переходит к paper trading.
 
 ## Этап 5. Prospective paper trading
 

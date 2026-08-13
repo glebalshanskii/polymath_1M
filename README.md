@@ -57,6 +57,13 @@ source — публичный PMXT v2 CLOB event archive; компактный K
 [source audit](docs/reports/polymarket_historical_data_source_audit.md) и
 [ADR-0004](docs/adr/0004-historical-market-data.md).
 
+Этап 4 завершён без выбранной стратегии. Из 13,036 closed markets PMXT causal
+top доступен для 13,034; independent OpenMarket sanity совпал с PMXT. Однако
+все пять article-derived configs дали 0 validation fills из-за сочетания
+entry range, persistence, support и edge gates. Test не запускался, поэтому
+result — `inconclusive_no_candidate`, а Stage 5 paper trading не разрешён.
+Подробности — в [Stage 4 report](docs/reports/murtazin_historical_screening_stage4.md).
+
 Запуск аудита:
 
 ```bash
@@ -92,3 +99,15 @@ uv run polymath_1M pmxt-overlap-smoke \
 ```
 
 Данные и подробные decisions остаются в ignored `data/` и `outputs/`.
+
+Stage 4 data build и screening:
+
+```bash
+uv run polymath_1M stage4-build-universe
+uv run polymath_1M stage4-build-pmxt
+uv run polymath_1M stage4-screen
+uv run polymath_1M stage4-openmarket-sanity
+```
+
+PMXT build restartable: каждый hourly checkpoint хешируется, а исходные
+object size/ETag фиксируются. Canonical screening config использует CUDA.
