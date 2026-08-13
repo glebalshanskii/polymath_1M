@@ -5,6 +5,11 @@
 - Target: BTC/ETH/SOL/XRP, 5m/15m/1h, Polymarket CLOB
 - Решение: [ADR-0004](../adr/0004-historical-market-data.md)
 
+> **Текущая policy для новых экспериментов:** только PMXT v2 может быть
+> historical source котировок, стакана, trades и execution replay. Kacho,
+> Trent и остальные источники ниже сохраняются лишь как аудит и provenance
+> уже завершённых работ. См. [ADR-0016](../adr/0016-pmxt-only-historical-market-data.md).
+
 ## Итог
 
 Исторические данные доступны, поэтому стратегия не будет ждать накопления

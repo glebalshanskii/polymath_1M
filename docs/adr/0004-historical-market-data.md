@@ -4,6 +4,11 @@
 - Дата: 2026-08-13
 - Этап: 3–4
 
+> Для новых экспериментов правила этого ADR superseded
+> [ADR-0016](0016-pmxt-only-historical-market-data.md): historical market
+> data берутся только из PMXT v2. Здесь сохранено обоснование уже завершённых
+> Stage 3–4.
+
 ## Контекст
 
 Собственный collector нужен для live/paper execution, но ждать, пока он
