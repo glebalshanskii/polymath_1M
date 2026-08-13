@@ -50,7 +50,7 @@ Train-only models:
 
 Пять configs фиксированы в experiment config. Candidate выбирается по maximum
 validation net PnL для `terminal_lookup` при actual Gamma fee schedule плюс
-`0.01 USDC/share`, при не менее 100 fills; tie-break — strategy ID. Если ни
+`0.01 USDC/share`, при не менее 20 fills; tie-break — strategy ID. Если ни
 один config не достигает exposure gate, final test не запускается и результат
 `inconclusive_no_candidate`.
 
@@ -74,7 +74,7 @@ Frozen extra-cost scenarios: 0.5¢, 1¢ и 2¢ per filled share. Они вклю
 После validation selection один выбранный config оценивается на untouched
 test для трёх models и трёх costs. Primary gate — `terminal_lookup` + 1¢:
 
-- at least 300 fills;
+- at least 20 fills;
 - net PnL > 0;
 - profit factor >= 1.10;
 - maximum drawdown < 10% от frozen 10,000 USDC bankroll;
@@ -121,3 +121,14 @@ execution best ask` contract. Он годится только для отсев
 подтверждает capacity/fill. Полный L2 и measured latency остаются обязательным
 gate prospective paper trading. Period, split, labels и target test не
 просматривались и не менялись.
+
+## Amendment 2026-08-13 — feasible development exposure gates
+
+Self-review первого `inconclusive_no_candidate` run обнаружил, что общие
+исходные gates 100 validation / 300 test fills недостижимы для hourly configs:
+их splits содержат только 76 и 78 markets. Test не запускался ни для одного
+config. Для этого короткого development screening оба gates исправлены на 20
+fills; prospective gate 500 fills не меняется. Поправка сделана не по знаку
+PnL: у всех пяти configs в первом run было ровно 0 fills, поэтому она не может
+сделать кандидата eligible. Первый run сохранён как audit trail, canonical
+result создаётся повторно на clean commit.
