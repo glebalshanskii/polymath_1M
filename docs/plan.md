@@ -2,10 +2,10 @@
 
 - Обновлено: 2026-08-13
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Этап 4 завершён без кандидата;
+- Текущий этап: **Этап 4b завершён; calibrated candidate провалил test;
   24-hour Stage 2 validation идёт параллельно**
-- Следующий deliverable: Stage 4b practical signal redesign на train/validation
-  с новым frozen config; Stage 5 пока не разрешён
+- Следующий deliverable: Stage 4c с более длинным новым historical horizon,
+  walk-forward validation и новым untouched holdout; Stage 5 пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -232,17 +232,42 @@ prospective paper trading.
 
 Даже прошедший historical run без полного L2 не имеет права на live.
 
-### Следующий practical шаг: Stage 4b
+### Stage 4b: practical signal calibration
 
-Test этого horizon остаётся untouched. Новый development protocol должен на
-train/validation заменить literal fixed ranges на calibrated policy,
-показать ненулевую exposure и ablations для range/persistence/edge. Только
-после freeze нового config разрешён один test run. Если снова нет кандидата,
-проект не переходит к paper trading.
+Статус: **completed 2026-08-13; test `fail`**.
+
+- До запуска зафиксирован grid по ask range, edge, persistence и support.
+  Profitability не заменялась требованием «получить fills»: eligible candidate
+  должен был иметь минимум 20/2% validation fills, положительный PnL в обеих
+  половинах, PF ≥ 1.10, положительный stress PnL при 2¢/share и устойчивых
+  соседей.
+- CUDA-calibration проверила 2,700 cells в каждой из пяти families. Только
+  `multi_asset_short_5m` имела eligible cells (5).
+- Frozen candidate: ask `[0.50, 0.55]`, edge ≥ 0, persistence ≥
+  `0.1036585`, support ≥ 1. На validation: 60/1,840 fills, `+31.73 USDC`,
+  PF `1.121`; обе половины положительны, stress `+7.72 USDC`.
+- После commit config test открыт один раз. Exposure стала практической:
+  106/1,840 fills. Profitability не перенеслась: `-1.88 USDC`, PF `0.996`,
+  вторая половина `-20.50 USDC`, stress `-32.70 USDC`.
+- Итог — `fail`. Test-период 2026-04-20/21 с этого момента запрещён для
+  tuning и повторного selection. Stage 5 не разрешён.
+
+Подробности: [Stage 4b report](reports/murtazin_signal_calibration_stage4b.md),
+[ADR-0007](adr/0007-stage4b-calibration-result.md) и
+[frozen protocol](protocols/screening/0002_stage4b_signal_calibration.md).
+
+### Следующий practical шаг: Stage 4c
+
+Не подбирать ещё один threshold на уже открытом двухдневном test. Собрать
+новый более длинный PMXT horizon, сделать несколько chronological
+walk-forward folds и потребовать прибыль после costs в большинстве folds.
+Последний новый период заранее оставить единственным holdout. Только кандидат,
+который проходит этот gate, допускается в Stage 5 full-L2 paper trading.
 
 ## Этап 5. Prospective paper trading
 
-Статус: **pending selected config and collector burn-in**.
+Статус: **blocked until a new historical candidate passes holdout; collector
+burn-in may continue independently**.
 
 ### Работы
 

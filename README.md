@@ -64,6 +64,14 @@ entry range, persistence, support и edge gates. Test не запускался,
 result — `inconclusive_no_candidate`, а Stage 5 paper trading не разрешён.
 Подробности — в [Stage 4 report](docs/reports/murtazin_historical_screening_stage4.md).
 
+Этап 4b построил полную воронку и откалибровал thresholds, не отменяя
+profitability gates. На validation выбран `multi_asset_short_5m`: 60 fills,
+`+31.73 USDC`, PF 1.121 и положительный 2¢ stress. После commit config
+untouched test открыт один раз: 106 fills, но `-1.88 USDC`, PF 0.996 и
+`-32.70 USDC` в stress. Итог — `fail`; этот test больше не используется для
+tuning, Stage 5 не разрешён. Детали — в
+[Stage 4b report](docs/reports/murtazin_signal_calibration_stage4b.md).
+
 Запуск аудита:
 
 ```bash
@@ -111,3 +119,12 @@ uv run polymath_1M stage4-openmarket-sanity
 
 PMXT build restartable: каждый hourly checkpoint хешируется, а исходные
 object size/ETag фиксируются. Canonical screening config использует CUDA.
+
+Stage 4b calibration была выполнена командой:
+
+```bash
+uv run polymath_1M stage4b-calibrate
+```
+
+Frozen one-shot holdout уже выполнен. `stage4b-test` намеренно отказывается
+повторно открывать существующий canonical test artifact.
