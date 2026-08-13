@@ -583,6 +583,7 @@ def run_stage4c_calibration(
         "dataset_manifest_sha256": provenance.dataset_manifest_sha256,
         "gamma_universe_manifest_sha256": provenance.gamma_universe_manifest_sha256,
         "gamma_universe_sha256": provenance.gamma_universe_sha256,
+        "gamma_rows_loaded": provenance.gamma_rows_loaded,
         "development_rows_loaded": provenance.loaded_markets,
         "development_valid_rows": provenance.valid_markets,
         "holdout_rows_loaded": 0,

@@ -29,6 +29,7 @@ class KachoGammaProvenance:
     gamma_universe_manifest: str
     gamma_universe_manifest_sha256: str
     gamma_universe_sha256: str
+    gamma_rows_loaded: int
     loaded_markets: int
     valid_markets: int
 
@@ -41,12 +42,40 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _load_gamma_rows(
+    universe_path: Path,
+    *,
+    assets: tuple[str, ...],
+    period_start_s: int,
+    end_exclusive_s: int,
+) -> dict[str, dict[str, object]]:
+    rows = pq.read_table(
+        universe_path,
+        columns=["condition_id", "asset", "duration", "outcome_up", "fee_rate"],
+        filters=[
+            ("market_start_ms", ">=", period_start_s * 1_000),
+            ("market_start_ms", "<", end_exclusive_s * 1_000),
+            ("duration", "=", "5m"),
+        ],
+    ).to_pylist()
+    allowed = set(assets)
+    selected = [row for row in rows if str(row["asset"]) in allowed]
+    result = {str(row["condition_id"]): row for row in selected}
+    if len(result) != len(selected):
+        raise KachoGammaDataError("duplicate Gamma condition IDs in selected period")
+    return result
+
+
 def load_kacho_gamma_data(
     config: WalkForwardConfig,
     market_config: ScreeningConfig,
     *,
     end_exclusive_s: int,
 ) -> tuple[ScreeningData, KachoGammaProvenance]:
+    period_start_s = int(market_config.period_start.timestamp())
+    period_end_s = int(market_config.period_end_exclusive.timestamp())
+    if not period_start_s < end_exclusive_s <= period_end_s:
+        raise KachoGammaDataError("requested data boundary is outside frozen period")
     dataset_config = load_kacho_dataset_config(config.dataset_config)
     batch = load_kacho_decision_batch(
         dataset_config,
@@ -59,7 +88,7 @@ def load_kacho_gamma_data(
         execution_latency_seconds=math_ceil_milliseconds(
             market_config.execution_latency_ms
         ),
-        period_start_s=int(market_config.period_start.timestamp()),
+        period_start_s=period_start_s,
         period_end_exclusive_s=end_exclusive_s,
     )
     root = Path(market_config.data_root)
@@ -74,20 +103,21 @@ def load_kacho_gamma_data(
         raise KachoGammaDataError("Gamma universe data contract differs")
     if universe_manifest.get("universe_sha256") != _sha256(universe_path):
         raise KachoGammaDataError("Gamma universe hash mismatch")
-    rows = pq.read_table(
+    gamma = _load_gamma_rows(
         universe_path,
-        columns=["condition_id", "asset", "duration", "outcome_up", "fee_rate"],
-    ).to_pylist()
-    gamma = {
-        str(row["condition_id"]): row
-        for row in rows
-        if row["duration"] == "5m"
-        and str(row["asset"]) in config.assets
-    }
+        assets=config.assets,
+        period_start_s=period_start_s,
+        end_exclusive_s=end_exclusive_s,
+    )
     missing = [value for value in batch.condition_ids if value not in gamma]
     if missing:
         raise KachoGammaDataError(
             f"{len(missing)} Kacho conditions are absent from Gamma universe"
+        )
+    if len(gamma) != len(batch):
+        raise KachoGammaDataError(
+            "Kacho/Gamma selected-period market counts differ: "
+            f"{len(batch)} != {len(gamma)}"
         )
     for condition_id, asset in zip(batch.condition_ids, batch.assets, strict=True):
         if str(gamma[condition_id]["asset"]) != asset:
@@ -122,6 +152,7 @@ def load_kacho_gamma_data(
         gamma_universe_manifest=str(universe_manifest_path),
         gamma_universe_manifest_sha256=_sha256(universe_manifest_path),
         gamma_universe_sha256=_sha256(universe_path),
+        gamma_rows_loaded=len(gamma),
         loaded_markets=len(batch),
         valid_markets=valid,
     )
