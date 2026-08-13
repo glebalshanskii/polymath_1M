@@ -18,6 +18,8 @@ filter, тогда как сторону и terminal payout прогнозиро
 
 Stage 4f зафиксировал обе до запуска и реализовал именно
 `j*=argmax(P[i])`, `p_hat=P[i,j*]`, destination persistence `P[j*,j*]`.
+Проверка ограничена BTC 5m и одним переходом `end-120s -> end-60s` на рынок:
+границы states, sampling window и multi-asset pooling статья не раскрывает.
 
 ## Решение
 
