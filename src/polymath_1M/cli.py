@@ -17,6 +17,7 @@ from .historical.trent import download_trent_gamma_outcomes, download_trent_step
 from .screening.calibration import run_stage4b_calibration
 from .screening.capital_chart import run_stage4d_capital_chart
 from .screening.holdout import run_stage4b_test
+from .screening.literal_markov import run_stage4f_literal_markov
 from .screening.openmarket import run_openmarket_sanity
 from .screening.plateau import run_stage4d_calibration
 from .screening.pmxt_dataset import build_stage4_pmxt_dataset
@@ -24,6 +25,7 @@ from .screening.regime_holdout import run_stage4e_holdout
 from .screening.regime_models import run_stage4e_development
 from .screening.regime_robustness import run_stage4e_early_robustness
 from .screening.run import run_stage4_screening
+from .screening.terminal_markov import run_stage4g_terminal_markov
 from .screening.time_chart import run_stage4d_time_chart
 from .screening.universe import build_stage4_universe
 from .screening.walkforward import run_stage4c_calibration
@@ -408,6 +410,44 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/holdout",
         help="ignored directory for the one-shot holdout artifacts",
     )
+    literal_markov = subparsers.add_parser(
+        "stage4f-literal-markov",
+        help="run the frozen source-defined Markov entry rules",
+    )
+    literal_markov.add_argument(
+        "--config",
+        default="cfg/experiments/stage4f_literal_markov.json",
+        help="path to the frozen Stage 4f literal-Markov config",
+    )
+    literal_markov.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory containing pinned Kacho and Trent inputs",
+    )
+    literal_markov.add_argument(
+        "--output-root",
+        default="outputs/literal_markov",
+        help="ignored directory for literal-Markov diagnostics",
+    )
+    terminal_markov = subparsers.add_parser(
+        "stage4g-terminal-markov",
+        help="run the frozen market-anchored terminal Markov strategy",
+    )
+    terminal_markov.add_argument(
+        "--config",
+        default="cfg/experiments/stage4g_terminal_markov.json",
+        help="path to the frozen Stage 4g terminal-Markov config",
+    )
+    terminal_markov.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory containing pinned Kacho and Trent inputs",
+    )
+    terminal_markov.add_argument(
+        "--output-root",
+        default="outputs/terminal_markov",
+        help="ignored directory for terminal-Markov diagnostics",
+    )
     return parser
 
 
@@ -516,6 +556,22 @@ def main(argv: Sequence[str] | None = None) -> None:
     elif args.command == "stage4e-holdout":
         print(
             run_stage4e_holdout(
+                args.config,
+                data_root=args.data_root,
+                output_root=args.output_root,
+            )
+        )
+    elif args.command == "stage4f-literal-markov":
+        print(
+            run_stage4f_literal_markov(
+                args.config,
+                data_root=args.data_root,
+                output_root=args.output_root,
+            )
+        )
+    elif args.command == "stage4g-terminal-markov":
+        print(
+            run_stage4g_terminal_markov(
                 args.config,
                 data_root=args.data_root,
                 output_root=args.output_root,

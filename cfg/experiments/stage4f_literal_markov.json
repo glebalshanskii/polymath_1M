@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "experiment_id": "stage4f_literal_markov_btc5m_20260221_20260514",
+  "primary_source_config": "cfg/experiments/stage4e_regime_models.json",
+  "early_source_config": "cfg/experiments/stage4e_trent_robustness.json",
+  "asset": "BTC",
+  "duration": "5m",
+  "decision_seconds_before_end": 60,
+  "transition_horizon_seconds": 60,
+  "execution_latency_seconds": 1,
+  "state_bin_edges": [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.000001],
+  "transition_pseudocount": 0.0,
+  "minimum_row_transitions": 1,
+  "side_state_policy": "up_mid_and_one_minus_up_mid_shared_matrix",
+  "side_selection_policy": "evaluate_both_sides_choose_larger_gap_then_up",
+  "variants": [
+    {
+      "variant_id": "core_tau87",
+      "source": "article_core_equations_2_2_2_3_and_pseudocode",
+      "minimum_ask": 0.64,
+      "maximum_ask": 0.99,
+      "minimum_gap": 0.05,
+      "gap_operator": "greater_equal",
+      "minimum_destination_persistence": 0.87
+    },
+    {
+      "variant_id": "b27_tau75",
+      "source": "article_equation_2_7_0xB27BC932_row",
+      "minimum_ask": 0.01,
+      "maximum_ask": 0.96,
+      "minimum_gap": 0.05,
+      "gap_operator": "greater",
+      "minimum_destination_persistence": 0.75
+    }
+  ],
+  "target_notional_usdc": 10.0,
+  "platform_fee_round_decimals": 4,
+  "primary_extra_cost_per_share": 0.01,
+  "stress_extra_cost_per_share": 0.02,
+  "minimum_candidate_fills": 100,
+  "minimum_positive_folds": 6,
+  "minimum_profit_factor": 1.10,
+  "seed": 20260813,
+  "device": "cuda",
+  "dtype": "float64"
+}
