@@ -2,10 +2,10 @@
 
 - Дата: 2026-08-13
 - Venue: Polymarket CLOB
-- Canonical code commit: `a9f072491b34985967b22d0208aaf3d4686638fe`
+- Canonical code commit: `661c7722d58f4e65fc600bb4c7130ac6adeb1307`
 - Seed: `20260813`
 - Device: NVIDIA GeForce RTX 3080 Ti Laptop GPU
-- Runtime: `torch 2.13.0+cu130`, CUDA 13.0, `torch.float64`, 8.66 s
+- Runtime: `torch 2.13.0+cu130`, CUDA 13.0, `torch.float64`, 8.67 s
 - Решение: [ADR-0008](../adr/0008-stage4c-walkforward-result.md)
 - Protocol: [0003_stage4c_walkforward.md](../protocols/screening/0003_stage4c_walkforward.md)
 
@@ -76,18 +76,20 @@ Final status: **`inconclusive_no_candidate`**. Ни одна комбинаци�
 Holdout `[2026-05-14, 2026-05-18)` не вычислялся и Stage 5 не разрешён.
 
 Canonical artifacts:
-`outputs/calibration/20260813T091923Z_stage4c_walkforward_20260422_20260518/`.
+`outputs/calibration/20260813T092416Z_stage4c_walkforward_20260422_20260518/`.
 
 | Artifact/contract | SHA-256 |
 |---|---|
-| `proposal.json` | `ccb6c08544c096cc64c949eccb9ccf7202a0e75d5b613ca5e9183fb11b5b7fae` |
-| `run_record.json` | `30381f54c88402cab20744822444c7f9f5ed0064f99bbdf55a1c2c11c9e5513a` |
+| `proposal.json` | `ea750004e33f14b730744c57ca0c0229348629b0699df8eb4ce2ddf44540da68` |
+| `run_record.json` | `e3f87453d507373dfe3154ceef17ef154f7cdbbc8235704c2ce781f2d5ccb68e` |
 | Gamma `universe.parquet` | `57881c00ff4160c6fa96bde2f75570c101f9e930c175f2ea75751a9d5098272a` |
 | Gamma manifest | `b4facb66218ba9767c3b561038ae43dc8ad8e353ac382bbff3b770f381477719` |
 | Kacho local manifest | `8cd0b3a15d3a20b0feba37b941f2b9ab5f48a29a0edd7718d960f7c790f03848` |
 
 Run выполнен из clean commit; config, data contract, dataset revision,
-manifests, GPU и runtime записаны внутри artifacts.
+manifests, GPU и runtime записаны внутри artifacts. Gamma scan на уровне
+Parquet filter материализовал ровно 25,344 development labels; holdout labels
+не попадали в returned table.
 
 ## Self-review correction и run history
 
@@ -97,7 +99,16 @@ manifests, GPU и runtime записаны внутри artifacts.
 исправлен regression test: stress теперь всегда переоценивает идентичную
 primary trade set. Run `20260813T091808Z` уже дал корректный status без
 candidate; canonical run `20260813T091923Z` повторил его и добавил gate/near-
-miss diagnostics. Ни один из этих запусков не читал holdout.
+miss diagnostics. Ни один из этих запусков не использовал holdout rows в
+model, selection или metrics.
+
+Финальный self-review дополнительно обнаружил, что ранний Gamma adapter
+материализовал весь universe перед join по development IDs. Эти rows не
+участвовали в model/metrics, однако это было слабее заявленного isolation.
+Adapter получил time predicate на уровне Parquet scan и regression test;
+canonical run `20260813T092416Z` загрузил ровно 25,344 Gamma development rows.
+Его scientific payload полностью совпал с предыдущим корректным run после
+удаления provenance-only полей, то есть isolation fix не изменил результат.
 
 Stage 4b artifacts не переписываются. Его stress values следует считать
 несопоставимой post-hoc диагностикой, но итоговый `fail` остаётся: primary test

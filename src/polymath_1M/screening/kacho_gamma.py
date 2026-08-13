@@ -4,6 +4,7 @@ import hashlib
 import json
 from dataclasses import dataclass, replace
 from pathlib import Path
+
 import pyarrow.parquet as pq
 import torch
 
@@ -130,8 +131,14 @@ def load_kacho_gamma_data(
         [float(gamma[value]["fee_rate"]) for value in batch.condition_ids],
         dtype=torch.float64,
     )
-    if not torch.isfinite(outcomes).all() or not torch.isfinite(fees).all():
-        raise KachoGammaDataError("Gamma outcome or fee is non-finite")
+    binary_outcomes = (outcomes == 0) | (outcomes == 1)
+    if (
+        not torch.isfinite(outcomes).all()
+        or not binary_outcomes.all()
+        or not torch.isfinite(fees).all()
+        or bool((fees < 0).any().item())
+    ):
+        raise KachoGammaDataError("Gamma outcome or fee is outside its domain")
     batch = replace(
         batch,
         outcome_up=outcomes,

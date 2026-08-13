@@ -7,7 +7,7 @@ import os
 import platform
 import subprocess
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -15,11 +15,16 @@ from typing import Any
 import pyarrow as pa
 import torch
 
-from polymath_1M.strategy.model import Evaluation, LookupModel, evaluate_batch, fit_lookup_model
+from polymath_1M.strategy.model import (
+    Evaluation,
+    LookupModel,
+    evaluate_batch,
+    fit_lookup_model,
+)
 from polymath_1M.strategy.parameters import StrategyConfig, load_strategy_config
 
 from .calibration_config import CalibrationConfig, load_calibration_config
-from .config import ScreeningConfig, load_screening_config
+from .config import load_screening_config
 from .run import (
     ScreeningData,
     _load_rows,
@@ -197,6 +202,17 @@ def _grid_metrics(
 ) -> GridMetrics:
     if not torch.equal(primary.side, stress.side):
         raise CalibrationRunError("uniform cost changed side selection")
+    if not torch.equal(primary.filled, stress.filled) or not torch.equal(
+        primary.fill_shares, stress.fill_shares
+    ):
+        raise CalibrationRunError("uniform cost changed execution")
+    if bool(
+        (
+            stress.net_pnl[primary.filled]
+            > primary.net_pnl[primary.filled] + 1e-12
+        ).any().item()
+    ):
+        raise CalibrationRunError("stress cost improved a primary trade")
     mask = _eligibility_matrix(
         data,
         primary,

@@ -4,6 +4,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -15,14 +16,14 @@ class WalkForwardConfigError(ValueError):
 def _time(value: Any, name: str) -> datetime:
     if not isinstance(value, str):
         raise WalkForwardConfigError(f"{name} must be an ISO timestamp")
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    parsed = datetime.fromisoformat(value)
     if parsed.tzinfo is None:
         raise WalkForwardConfigError(f"{name} must include a timezone")
     return parsed.astimezone(UTC)
 
 
 def _increasing(values: tuple[float, ...], name: str) -> None:
-    if not values or any(right <= left for left, right in zip(values, values[1:])):
+    if not values or any(right <= left for left, right in pairwise(values)):
         raise WalkForwardConfigError(f"{name} must be nonempty and increasing")
 
 

@@ -8,8 +8,7 @@ import torch
 
 from polymath_1M.screening.config import load_screening_config
 from polymath_1M.screening.pmxt_dataset import _valid_top_row
-from polymath_1M.screening.run import chronological_market_splits
-from polymath_1M.screening.run import _load_rows
+from polymath_1M.screening.run import _load_rows, chronological_market_splits
 
 
 class ScreeningTest(unittest.TestCase):
@@ -61,9 +60,9 @@ class ScreeningTest(unittest.TestCase):
         with (
             patch("pathlib.Path.is_file", return_value=True),
             patch("pathlib.Path.read_text", return_value=json.dumps(manifest)),
+            self.assertRaisesRegex(RuntimeError, "below the frozen 99% gate"),
         ):
-            with self.assertRaisesRegex(RuntimeError, "below the frozen 99% gate"):
-                _load_rows(config)
+            _load_rows(config)
 
         self.assertEqual(
             int((config.period_end_exclusive - config.period_start).total_seconds())
