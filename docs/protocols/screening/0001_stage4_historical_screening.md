@@ -109,3 +109,15 @@ UTC week, поэтому weekly share всегда 100%. Target test metrics н�
 positive PnL от одного дня. Period, raw data, split, models, costs и остальные
 gates не менялись; config hash обновлён. Это practical screening amendment,
 а не post-hoc улучшение результата.
+
+## Amendment 2026-08-13 — PMXT execution approximation
+
+При первом data-ingestion smoke, до расчёта validation/test PnL, установлено:
+для части recurring markets PMXT v2 начинает час с `price_change` rows и не
+даёт гарантированного отдельного full-book snapshot, хотя causal
+`best_bid`/`best_ask` hints присутствуют. Поэтому wide screening переведён с
+недоступной псевдоточной L2-реконструкции на явно оптимистичный `$10 at
+execution best ask` contract. Он годится только для отсева идей и не
+подтверждает capacity/fill. Полный L2 и measured latency остаются обязательным
+gate prospective paper trading. Period, split, labels и target test не
+просматривались и не менялись.
