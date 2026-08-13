@@ -301,6 +301,10 @@ prospective paper trading.
   primary range `+64.74…+170.82`, median `+130.88`, stress median `+89.08`.
 - Modeled entry turnover `2,235.11 USDC`, net return on turnover `7.54%`.
   Это сумма последовательных входов, не одновременно вложенный капитал.
+- Для явного сценария initial capital 2,000 USDC сохранён per-trade ledger и
+  график: `+8.43%` к initial, max drawdown `-102.33 USDC`/`-4.86%` от peak,
+  position outlay 0.17–10.40 USDC. 2,000 USDC не объявляется required capital;
+  см. [ADR-0010](adr/0010-live-capital-limits-need-data.md).
 - Loader прочитал 25,344 development и 0 holdout rows; canonical run record
   фиксирует `holdout_opened = false`.
 
@@ -347,13 +351,16 @@ burn-in may continue independently**.
 Перед стартом: platform/KYC/geographic eligibility, isolated wallet, secrets
 review, reconciliation, cancel-all и kill-switch tests.
 
-Начальные limits:
+До отдельной capital calibration зафиксированы только engineering guards:
 
-- max 10 USDC/order;
-- max 0.5% bankroll/asset;
-- max 2% total open exposure;
-- daily loss stop 2%;
+- max 10 USDC/order для parity с historical experiment;
 - no Kelly, no maker orders, no repeated entry.
+
+Bankroll, per-asset/total exposure и daily loss stop пока **не зафиксированы**.
+Проценты 0.5%/2%/2%, ранее внесённые агентом без empirical основания, отозваны.
+Перед live canary их заменит расчёт по prospective concurrent locked capital,
+resolution/redemption delays, p95-latency drawdown и size/slippage curve с
+явным утверждением пользователя. Решение: [ADR-0010](adr/0010-live-capital-limits-need-data.md).
 
 Масштабирование возможно только по измеренным fills, depth, slippage и
 drawdown, а не по sizes аккаунтов из статьи.
