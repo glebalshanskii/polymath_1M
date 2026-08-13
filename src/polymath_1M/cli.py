@@ -9,6 +9,7 @@ from .collector.replay import replay_run
 from .collector.runner import run_collector
 from .historical.download import download_kacho_dataset
 from .historical.overlap import run_pmxt_overlap_smoke
+from .screening.calibration import run_stage4b_calibration
 from .screening.openmarket import run_openmarket_sanity
 from .screening.pmxt_dataset import build_stage4_pmxt_dataset
 from .screening.run import run_stage4_screening
@@ -160,6 +161,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="cfg/experiments/stage4_pmxt_screening.json",
         help="path to the frozen Stage 4 screening config",
     )
+    calibration = subparsers.add_parser(
+        "stage4b-calibrate",
+        help="calibrate practical signal gates on train/validation only",
+    )
+    calibration.add_argument(
+        "--config",
+        default="cfg/experiments/stage4b_signal_calibration.json",
+        help="path to the frozen Stage 4b calibration config",
+    )
+    calibration.add_argument(
+        "--output-root",
+        default="outputs/calibration",
+        help="ignored directory for Stage 4b calibration artifacts",
+    )
     return parser
 
 
@@ -212,3 +227,5 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(run_stage4_screening(args.config, args.output_root))
     elif args.command == "stage4-openmarket-sanity":
         print(run_openmarket_sanity(args.config))
+    elif args.command == "stage4b-calibrate":
+        print(run_stage4b_calibration(args.config, args.output_root))
