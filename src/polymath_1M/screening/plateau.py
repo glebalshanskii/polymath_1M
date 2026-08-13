@@ -11,7 +11,7 @@ from typing import Any
 import pyarrow as pa
 import torch
 
-from polymath_1M.strategy.model import fit_lookup_model
+from polymath_1M.strategy.model import evaluate_batch, fit_lookup_model
 from polymath_1M.strategy.parameters import StrategyConfig, load_strategy_config
 
 from .calibration import (
@@ -271,6 +271,8 @@ def _record(
     grid: UniformGrid,
     pooled: PooledMetrics,
     plateau: PlateauMetrics,
+    members: torch.Tensor,
+    member_exists: torch.Tensor,
     config: PlateauConfig,
 ) -> dict[str, Any]:
     fold_rows = [
@@ -287,20 +289,72 @@ def _record(
         }
         for fold_index, fold in enumerate(config.folds)
     ]
+    grid_indices = [
+        int(value) for value in grid.indices[index].detach().cpu().tolist()
+    ]
+    dimension_names = (
+        "minimum_ask",
+        "maximum_ask",
+        "minimum_net_edge",
+        "minimum_persistence",
+    )
+    plateau_members = []
+    for member_index in members[index][member_exists[index]].detach().cpu().tolist():
+        member_grid_indices = [
+            int(value)
+            for value in grid.indices[member_index].detach().cpu().tolist()
+        ]
+        changed = [
+            (dimension_names[dimension], member_grid_indices[dimension] - value)
+            for dimension, value in enumerate(grid_indices)
+            if member_grid_indices[dimension] != value
+        ]
+        if len(changed) > 1:
+            raise PlateauRunError("plateau member differs in multiple dimensions")
+        plateau_members.append(
+            {
+                "relation": (
+                    "base"
+                    if not changed
+                    else f"{changed[0][0]}:{changed[0][1]:+d}"
+                ),
+                "grid_indices": member_grid_indices,
+                "minimum_ask": float(grid.minimum_ask[member_index].item()),
+                "maximum_ask": float(grid.maximum_ask[member_index].item()),
+                "minimum_net_edge": float(
+                    grid.minimum_net_edge[member_index].item()
+                ),
+                "minimum_persistence": float(
+                    grid.minimum_persistence[member_index].item()
+                ),
+                "fills": int(pooled.pooled_fill_count[member_index].item()),
+                "net_pnl_usdc": float(
+                    pooled.pooled_net_pnl[member_index].item()
+                ),
+                "stress_net_pnl_usdc": float(
+                    pooled.pooled_stress_pnl[member_index].item()
+                ),
+                "positive_folds": int(
+                    pooled.positive_folds[member_index].item()
+                ),
+                "positive_stress_folds": int(
+                    pooled.positive_stress_folds[member_index].item()
+                ),
+            }
+        )
     return {
         "strategy_id": strategy.strategy_id,
         "strategy_config": strategy_path,
         "assets": list(strategy.assets),
         "duration": strategy.duration,
+        "require_market_favorite": strategy.require_market_favorite,
         "target_notional_usdc": strategy.target_notional_usdc,
         "minimum_ask": float(grid.minimum_ask[index].item()),
         "maximum_ask": float(grid.maximum_ask[index].item()),
         "minimum_net_edge": float(grid.minimum_net_edge[index].item()),
         "minimum_persistence": float(grid.minimum_persistence[index].item()),
         "minimum_support": config.minimum_support,
-        "grid_indices": [
-            int(value) for value in grid.indices[index].detach().cpu().tolist()
-        ],
+        "grid_indices": grid_indices,
         "walkforward": {
             "folds": fold_rows,
             "pooled_fills": int(pooled.pooled_fill_count[index].item()),
@@ -343,7 +397,105 @@ def _record(
             ),
             "minimum_pnl_usdc": float(plateau.minimum_pnl[index].item()),
             "maximum_pnl_usdc": float(plateau.maximum_pnl[index].item()),
+            "members": plateau_members,
         },
+    }
+
+
+def _selected_capital_metrics(
+    data: ScreeningData,
+    strategy: StrategyConfig,
+    selected: dict[str, Any],
+    config: PlateauConfig,
+    edges: torch.Tensor,
+    terminal_alpha: float,
+    transition_alpha: float,
+    device: torch.device,
+) -> dict[str, Any]:
+    folds = []
+    total_fill_cost = 0.0
+    total_platform_fee = 0.0
+    total_extra_cost = 0.0
+    total_net_pnl = 0.0
+    for fold_index, fold in enumerate(config.folds):
+        train = _window(data, fold.train_start, fold.train_end_exclusive).to(device)
+        validation = _window(
+            data, fold.validation_start, fold.validation_end_exclusive
+        ).to(device)
+        model = fit_lookup_model(
+            train.batch,
+            edges,
+            terminal_alpha=terminal_alpha,
+            transition_alpha=transition_alpha,
+        )
+        evaluation = evaluate_batch(
+            validation.batch,
+            model,
+            minimum_support=int(selected["minimum_support"]),
+            minimum_persistence=float(selected["minimum_persistence"]),
+            minimum_ask=float(selected["minimum_ask"]),
+            maximum_ask=float(selected["maximum_ask"]),
+            minimum_net_edge=float(selected["minimum_net_edge"]),
+            target_notional_usdc=strategy.target_notional_usdc,
+            platform_fee_rate=validation.fee_rate,
+            platform_fee_round_decimals=5,
+            extra_cost_per_share=config.selection_extra_cost_per_share,
+            require_market_favorite=strategy.require_market_favorite,
+        )
+        filled = evaluation.filled
+        values = {
+            "fill_cost_usdc": float(evaluation.fill_cost[filled].sum().item()),
+            "platform_fee_usdc": float(
+                evaluation.platform_fee[filled].sum().item()
+            ),
+            "modeled_extra_cost_usdc": float(
+                evaluation.extra_cost[filled].sum().item()
+            ),
+            "net_pnl_usdc": float(evaluation.net_pnl[filled].sum().item()),
+        }
+        expected = selected["walkforward"]["folds"][fold_index]
+        if (
+            int(filled.sum().item()) != expected["fills"]
+            or abs(values["net_pnl_usdc"] - expected["net_pnl_usdc"]) > 1e-9
+        ):
+            raise PlateauRunError("selected replay differs from grid result")
+        modeled_outlay = (
+            values["fill_cost_usdc"]
+            + values["platform_fee_usdc"]
+            + values["modeled_extra_cost_usdc"]
+        )
+        folds.append(
+            {
+                "fold_id": fold.fold_id,
+                "fills": int(filled.sum().item()),
+                **values,
+                "modeled_entry_outlay_usdc": modeled_outlay,
+                "return_on_modeled_entry_outlay": (
+                    values["net_pnl_usdc"] / modeled_outlay
+                    if modeled_outlay > 0
+                    else None
+                ),
+            }
+        )
+        total_fill_cost += values["fill_cost_usdc"]
+        total_platform_fee += values["platform_fee_usdc"]
+        total_extra_cost += values["modeled_extra_cost_usdc"]
+        total_net_pnl += values["net_pnl_usdc"]
+    modeled_outlay = total_fill_cost + total_platform_fee + total_extra_cost
+    return {
+        "definition": (
+            "sum of filled entry cost, platform fee and frozen primary "
+            "extra-cost haircut; this is turnover, not simultaneous capital"
+        ),
+        "fill_cost_usdc": total_fill_cost,
+        "platform_fee_usdc": total_platform_fee,
+        "modeled_extra_cost_usdc": total_extra_cost,
+        "modeled_entry_outlay_usdc": modeled_outlay,
+        "net_pnl_usdc": total_net_pnl,
+        "return_on_modeled_entry_outlay": (
+            total_net_pnl / modeled_outlay if modeled_outlay > 0 else None
+        ),
+        "folds": folds,
     }
 
 
@@ -435,6 +587,8 @@ def run_stage4d_calibration(
                 grid,
                 pooled,
                 plateau,
+                members,
+                member_exists,
                 config,
             )
             for index in eligible_indices
@@ -457,6 +611,19 @@ def run_stage4d_calibration(
         )
     all_eligible.sort(key=_selection_key)
     selected = all_eligible[0] if all_eligible else None
+    if selected is not None:
+        selected_strategy = load_strategy_config(selected["strategy_config"])
+        selected_data = select_strategy_data(all_data, selected_strategy)
+        selected["capital_metrics"] = _selected_capital_metrics(
+            selected_data,
+            selected_strategy,
+            selected,
+            config,
+            edges,
+            data_config.terminal_alpha,
+            data_config.transition_alpha,
+            device,
+        )
     proposal = {
         "schema_version": 1,
         "experiment_id": config.experiment_id,

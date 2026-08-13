@@ -28,6 +28,11 @@ class PlateauTest(unittest.TestCase):
         self.assertEqual(members.shape, (37_638, 9))
         self.assertGreaterEqual(int(exists.sum(dim=1).amin().item()), 5)
         self.assertEqual(int(exists.sum(dim=1).amax().item()), 9)
+        interior = torch.nonzero(exists.sum(dim=1) == 9, as_tuple=False)[0].item()
+        center = grid.indices[interior]
+        neighbors = grid.indices[members[interior, 1:]]
+        distances = torch.abs(neighbors - center).sum(dim=1)
+        self.assertTrue(torch.equal(distances, torch.ones_like(distances)))
 
     def test_masked_median_averages_middle_pair(self) -> None:
         values = torch.tensor(
