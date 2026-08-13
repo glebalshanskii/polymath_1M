@@ -38,6 +38,7 @@ class EarlyRobustnessConfig:
     experiment_id: str
     primary_config: str
     dataset_config: str
+    outcome_config: str
     chainlink_config: str
     period_start_s: int
     period_end_exclusive_s: int
@@ -58,6 +59,7 @@ def load_early_robustness_config(path: str | Path) -> EarlyRobustnessConfig:
         "experiment_id",
         "primary_config",
         "dataset_config",
+        "outcome_config",
         "chainlink_config",
         "period_start",
         "period_end_exclusive",
@@ -123,7 +125,7 @@ def load_early_robustness_config(path: str | Path) -> EarlyRobustnessConfig:
         or int(payload["execution_latency_seconds"]) != 1
         or payload["execution_size_assumption"]
         != "target_notional_available_at_best_ask_only_if_total_ask_notional_covers_target"
-        or payload["outcome_policy"] != "inferred_from_final_token_mid_development_only"
+        or payload["outcome_policy"] != "gamma_authoritative_resolved_outcome"
     ):
         raise RegimeModelError("early robustness contract differs")
     canonical = json.dumps(
@@ -133,6 +135,7 @@ def load_early_robustness_config(path: str | Path) -> EarlyRobustnessConfig:
         experiment_id=str(payload["experiment_id"]),
         primary_config=str(payload["primary_config"]),
         dataset_config=str(payload["dataset_config"]),
+        outcome_config=str(payload["outcome_config"]),
         chainlink_config=str(payload["chainlink_config"]),
         period_start_s=start_s,
         period_end_exclusive_s=end_s,
@@ -156,18 +159,25 @@ def run_stage4e_early_robustness(
     started_monotonic = time.monotonic()
     config = load_early_robustness_config(config_path)
     primary = load_regime_config(config.primary_config)
-    secondary = replace(primary, folds=config.folds, variants=config.variants)
     device = torch.device(primary.device)
     if device.type == "cuda" and not torch.cuda.is_available():
         raise RegimeModelError("frozen CUDA device is unavailable")
     torch.manual_seed(primary.seed)
     batch, trent_provenance = load_trent_decision_batch(
         config.dataset_config,
+        config.outcome_config,
         data_root,
         decision_seconds_before_end=config.decision_seconds_before_end,
         transition_horizon_seconds=config.transition_horizon_seconds,
         execution_latency_seconds=config.execution_latency_seconds,
         target_notional_usdc=primary.target_notional_usdc,
+    )
+    gamma_provenance = trent_provenance["gamma"]
+    secondary = replace(
+        primary,
+        folds=config.folds,
+        variants=config.variants,
+        platform_fee_rate=float(gamma_provenance["fee_rate"]),
     )
     if (
         int(batch.market_start_s.min().item()) < config.period_start_s
@@ -187,7 +197,13 @@ def run_stage4e_early_robustness(
     results = []
     for variant in config.variants:
         result = _run_variant(
-            variant, secondary, batch, features, feature_names, device
+            variant,
+            secondary,
+            batch,
+            features,
+            feature_names,
+            device,
+            platform_fee_exponent=float(gamma_provenance["fee_exponent"]),
         )
         variant_dir = run_dir / variant
         variant_dir.mkdir()

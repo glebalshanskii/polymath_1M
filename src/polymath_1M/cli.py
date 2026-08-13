@@ -13,7 +13,7 @@ from .historical.overlap import run_pmxt_overlap_smoke
 from .historical.polymarket_chainlink import (
     download_polymarket_chainlink_context,
 )
-from .historical.trent import download_trent_steps
+from .historical.trent import download_trent_gamma_outcomes, download_trent_steps
 from .screening.calibration import run_stage4b_calibration
 from .screening.capital_chart import run_stage4d_capital_chart
 from .screening.holdout import run_stage4b_test
@@ -356,6 +356,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="data/historical",
         help="ignored directory for third-party historical files",
     )
+    trent_gamma = subparsers.add_parser(
+        "trent-gamma-download",
+        help="archive authoritative Gamma outcomes for the early Trent markets",
+    )
+    trent_gamma.add_argument(
+        "--config",
+        default="cfg/datasets/trent_btc5m_gamma_stage4e.json",
+        help="path to the pinned early Gamma outcome config",
+    )
+    trent_gamma.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory for the Gamma outcome archive",
+    )
     early_robustness = subparsers.add_parser(
         "stage4e-early-robustness",
         help="compare Stage 4e baseline/candidate on the early Trent source",
@@ -489,6 +503,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
     elif args.command == "trent-steps-download":
         print(download_trent_steps(args.config, args.data_root))
+    elif args.command == "trent-gamma-download":
+        print(download_trent_gamma_outcomes(args.config, args.data_root))
     elif args.command == "stage4e-early-robustness":
         print(
             run_stage4e_early_robustness(

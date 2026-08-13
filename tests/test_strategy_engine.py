@@ -82,6 +82,14 @@ class StrategyEngineTest(unittest.TestCase):
             )
         )
 
+    def test_platform_fee_supports_legacy_quadratic_curve(self) -> None:
+        shares = torch.tensor([[[100.0]]], dtype=torch.float64)
+        prices = torch.tensor([[[0.5]]], dtype=torch.float64)
+        fee = calculate_platform_fee(
+            shares, prices, 0.25, decimals=5, exponent=2.0
+        )
+        self.assertAlmostEqual(fee.item(), 1.5625)
+
     def test_range_control_can_force_market_favorite_and_disable_model_gates(
         self,
     ) -> None:

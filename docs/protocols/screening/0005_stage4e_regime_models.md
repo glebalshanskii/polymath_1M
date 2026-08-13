@@ -165,7 +165,16 @@ Trent run не объединяется с primary PnL и не меняет prim
 10 USDC считаются доступными по best ask лишь когда total ask notional не меньше
 10 USDC. Это optimistic top-level allocation approximation; итог маркируется
 `source_specific_indicative`, а не executable full-L2 evidence. Outcome
-development-only выводится из финального token mid.
+берётся из отдельно архивированного resolved `outcomePrices` Gamma и
+сопоставляется по market ID. Финальный token mid для label не используется:
+pre-run audit показал, что после закрытия он часто возвращается к `0.5`.
+
+Для этого раннего периода Gamma фиксирует legacy fee curve `rate=0.25`,
+`exponent=2`; применяется формула
+`shares * rate * (price * (1 - price))^exponent`. Это соответствует максимуму
+1.5625 USDC на 100 shares при цене 0.5. Оба сравниваемых варианта используют
+одинаковую fee curve. Современный primary Kacho interval остаётся на своей
+зафиксированной linear curve `rate=0.07`, `exponent=1`.
 
 Chainlink features берутся из отдельного pinned minute archive с тем же
 causal lag M6. Trent repository pin:

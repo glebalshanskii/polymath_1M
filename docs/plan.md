@@ -350,7 +350,8 @@ acceptance, затем self-review, и только после явного ра
   amendment добавляет causal-lagged M6 и запрещает M5 участвовать в selection.
 - Отдельный early Trent robustness experiment расширяет development chronology
   примерно до 81 дня (около 86 дней до конца всё ещё закрытого Kacho holdout).
-  Его approximate best-ask PnL не складывается с primary Kacho PnL.
+  Его approximate best-ask PnL с authoritative Gamma labels и исторической
+  quadratic fee curve не складывается с primary Kacho PnL.
 - Primary development выбрал causal-lagged M6 и зафиксировал selected config
   с one-shot holdout gate; сам holdout пока не открыт.
 

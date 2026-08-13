@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -14,8 +15,11 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 
 import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
 import torch
 
+from polymath_1M.audit.http import UrllibJsonTransport
 from polymath_1M.domain import DecisionBatch
 
 
@@ -38,6 +42,19 @@ class TrentConfig:
 
     def dataset_dir(self, root: str | Path) -> Path:
         return Path(root) / self.dataset_id.replace("/", "--") / self.revision
+
+
+@dataclass(frozen=True)
+class TrentGammaConfig:
+    dataset_config: str
+    gamma_base_url: str
+    gamma_series_id: str
+    period_start_s: int
+    period_end_exclusive_s: int
+    page_limit: int
+    expected_fee_rate: float
+    expected_fee_exponent: float
+    config_sha256: str
 
 
 def _sha256(path: Path) -> str:
@@ -105,6 +122,59 @@ def load_trent_config(path: str | Path) -> TrentConfig:
         or config.period_start_s >= config.period_end_exclusive_s
     ):
         raise TrentDataError("Trent config differs from the audited early BTC source")
+    return config
+
+
+def load_trent_gamma_config(path: str | Path) -> TrentGammaConfig:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    expected = {
+        "schema_version",
+        "dataset_config",
+        "gamma_base_url",
+        "gamma_series_id",
+        "period_start",
+        "period_end_exclusive",
+        "page_limit",
+        "expected_fee_rate",
+        "expected_fee_exponent",
+    }
+    if payload.keys() != expected:
+        raise TrentDataError(
+            f"Trent Gamma fields differ: missing={sorted(expected - payload.keys())}, "
+            f"extra={sorted(payload.keys() - expected)}"
+        )
+    canonical = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    config = TrentGammaConfig(
+        dataset_config=str(payload["dataset_config"]),
+        gamma_base_url=str(payload["gamma_base_url"]).rstrip("/"),
+        gamma_series_id=str(payload["gamma_series_id"]),
+        period_start_s=_timestamp(payload["period_start"], "period_start"),
+        period_end_exclusive_s=_timestamp(
+            payload["period_end_exclusive"], "period_end_exclusive"
+        ),
+        page_limit=int(payload["page_limit"]),
+        expected_fee_rate=float(payload["expected_fee_rate"]),
+        expected_fee_exponent=float(payload["expected_fee_exponent"]),
+        config_sha256=hashlib.sha256(canonical).hexdigest(),
+    )
+    if (
+        payload["schema_version"] != 1
+        or config.gamma_base_url != "https://gamma-api.polymarket.com"
+        or config.gamma_series_id != "10684"
+        or config.page_limit != 100
+        or config.expected_fee_rate != 0.25
+        or config.expected_fee_exponent != 2.0
+        or config.period_start_s >= config.period_end_exclusive_s
+    ):
+        raise TrentDataError("Trent Gamma config differs from the audited source")
+    dataset = load_trent_config(config.dataset_config)
+    if (
+        config.period_start_s != dataset.period_start_s
+        or config.period_end_exclusive_s != dataset.period_end_exclusive_s
+    ):
+        raise TrentDataError("Trent and Gamma periods differ")
     return config
 
 
@@ -247,8 +317,223 @@ def download_trent_steps(
     return manifest_path
 
 
+def _source_market_starts(config: TrentConfig) -> dict[str, int]:
+    pattern = re.compile(
+        r"^btc5m_market(\d+)_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})_all/"
+        r"steps\.parquet$"
+    )
+    result: dict[str, int] = {}
+    for relative in _repository_paths(config):
+        match = pattern.fullmatch(relative)
+        if match is None:
+            raise TrentDataError(f"unexpected Trent source path: {relative}")
+        market_id, timestamp = match.groups()
+        start = datetime.strptime(timestamp, "%Y-%m-%d_%H-%M-%S").replace(tzinfo=UTC)
+        if market_id in result:
+            raise TrentDataError(f"duplicate Trent market ID: {market_id}")
+        result[market_id] = int(start.timestamp())
+    return result
+
+
+def _json_array(value: Any, name: str) -> list[Any]:
+    decoded = json.loads(value) if isinstance(value, str) else value
+    if not isinstance(decoded, list):
+        raise TrentDataError(f"{name} is not an array")
+    return decoded
+
+
+def download_trent_gamma_outcomes(
+    config_path: str | Path,
+    data_root: str | Path = "data/historical",
+) -> Path:
+    config = load_trent_gamma_config(config_path)
+    dataset = load_trent_config(config.dataset_config)
+    dataset_dir = dataset.dataset_dir(data_root)
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = dataset_dir / "gamma_manifest.json"
+    outcomes_path = dataset_dir / "gamma_outcomes.parquet"
+    if manifest_path.is_file() and outcomes_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (
+            manifest.get("config_sha256") != config.config_sha256
+            or manifest.get("outcomes_sha256") != _sha256(outcomes_path)
+        ):
+            raise TrentDataError("existing Trent Gamma archive differs")
+        return manifest_path
+
+    source_starts = _source_market_starts(dataset)
+    raw_dir = dataset_dir / "gamma_raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    transport = UrllibJsonTransport(timeout_seconds=30, retries=5)
+    rows_by_market: dict[str, dict[str, Any]] = {}
+    raw_inventory: list[dict[str, Any]] = []
+    cursor: str | None = None
+    page = 0
+    while True:
+        params: dict[str, object] = {
+            "series_id": config.gamma_series_id,
+            "closed": True,
+            "limit": config.page_limit,
+            "end_date_min": datetime.fromtimestamp(
+                config.period_start_s, tz=UTC
+            ).isoformat(),
+            "end_date_max": datetime.fromtimestamp(
+                config.period_end_exclusive_s, tz=UTC
+            ).isoformat(),
+        }
+        if cursor is not None:
+            params["after_cursor"] = cursor
+        response = transport.get_json(config.gamma_base_url, "/events/keyset", params)
+        if not isinstance(response.data, dict) or not isinstance(
+            response.data.get("events"), list
+        ):
+            raise TrentDataError("Gamma keyset response is invalid")
+        events = response.data["events"]
+        raw_path = raw_dir / f"page_{page:05d}.json"
+        temporary_raw = raw_path.with_suffix(".json.part")
+        temporary_raw.write_bytes(response.body)
+        os.replace(temporary_raw, raw_path)
+        raw_inventory.append(
+            {
+                "path": str(raw_path.relative_to(dataset_dir)),
+                "url": response.url,
+                "retrieved_at": response.retrieved_at,
+                "bytes": raw_path.stat().st_size,
+                "sha256": _sha256(raw_path),
+                "rows": len(events),
+            }
+        )
+        for event in events:
+            if not isinstance(event, dict):
+                raise TrentDataError("Gamma event is not an object")
+            start_s = _timestamp(event.get("startTime"), "event.startTime")
+            if not config.period_start_s <= start_s < config.period_end_exclusive_s:
+                continue
+            markets = event.get("markets")
+            if not isinstance(markets, list) or len(markets) != 1:
+                raise TrentDataError("Gamma BTC 5m event does not have one market")
+            market = markets[0]
+            market_id = str(market.get("id"))
+            expected_start = source_starts.get(market_id)
+            if expected_start is None:
+                continue
+            if expected_start != start_s:
+                raise TrentDataError(f"Gamma start differs for market {market_id}")
+            outcomes = _json_array(market.get("outcomes"), "outcomes")
+            prices = tuple(
+                float(value)
+                for value in _json_array(market.get("outcomePrices"), "outcomePrices")
+            )
+            if outcomes != ["Up", "Down"] or prices not in {
+                (1.0, 0.0),
+                (0.0, 1.0),
+            }:
+                raise TrentDataError(f"Gamma outcome differs for market {market_id}")
+            schedule = market.get("feeSchedule")
+            if not isinstance(schedule, dict):
+                raise TrentDataError(f"Gamma fee schedule missing for {market_id}")
+            fee_rate = float(schedule.get("rate"))
+            fee_exponent = float(schedule.get("exponent"))
+            if (
+                fee_rate != config.expected_fee_rate
+                or fee_exponent != config.expected_fee_exponent
+                or not bool(schedule.get("takerOnly"))
+            ):
+                raise TrentDataError(f"Gamma fee schedule differs for {market_id}")
+            condition_id = str(market.get("conditionId") or "").lower()
+            if len(condition_id) != 66 or not condition_id.startswith("0x"):
+                raise TrentDataError(f"Gamma condition ID invalid for {market_id}")
+            if market_id in rows_by_market:
+                raise TrentDataError(f"duplicate Gamma market {market_id}")
+            rows_by_market[market_id] = {
+                "market_id": market_id,
+                "condition_id": condition_id,
+                "market_start_s": start_s,
+                "outcome_up": prices[0],
+                "fee_rate": fee_rate,
+                "fee_exponent": fee_exponent,
+            }
+        next_cursor = response.data.get("next_cursor")
+        if not events or not next_cursor:
+            break
+        if str(next_cursor) == cursor:
+            raise TrentDataError("Gamma cursor did not advance")
+        cursor = str(next_cursor)
+        page += 1
+    missing = sorted(set(source_starts) - set(rows_by_market))
+    if missing:
+        raise TrentDataError(f"Gamma is missing {len(missing)} Trent outcomes")
+    rows = sorted(rows_by_market.values(), key=lambda row: row["market_start_s"])
+    temporary_outcomes = outcomes_path.with_suffix(".parquet.part")
+    pq.write_table(pa.Table.from_pylist(rows), temporary_outcomes, compression="zstd")
+    os.replace(temporary_outcomes, outcomes_path)
+    manifest = {
+        "schema_version": 1,
+        "created_at": datetime.now(UTC).isoformat(),
+        "config_path": str(config_path),
+        "config_sha256": config.config_sha256,
+        "gamma_base_url": config.gamma_base_url,
+        "gamma_series_id": config.gamma_series_id,
+        "period_start": datetime.fromtimestamp(
+            config.period_start_s, tz=UTC
+        ).isoformat(),
+        "period_end_exclusive": datetime.fromtimestamp(
+            config.period_end_exclusive_s, tz=UTC
+        ).isoformat(),
+        "markets": len(rows),
+        "outcomes_path": outcomes_path.name,
+        "outcomes_sha256": _sha256(outcomes_path),
+        "expected_fee_rate": config.expected_fee_rate,
+        "expected_fee_exponent": config.expected_fee_exponent,
+        "raw_inventory": raw_inventory,
+    }
+    temporary_manifest = manifest_path.with_suffix(".json.part")
+    temporary_manifest.write_text(
+        json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary_manifest, manifest_path)
+    return manifest_path
+
+
+def load_trent_gamma_outcomes(
+    config_path: str | Path,
+    data_root: str | Path,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    config = load_trent_gamma_config(config_path)
+    dataset = load_trent_config(config.dataset_config)
+    dataset_dir = dataset.dataset_dir(data_root)
+    manifest_path = dataset_dir / "gamma_manifest.json"
+    outcomes_path = dataset_dir / "gamma_outcomes.parquet"
+    if not manifest_path.is_file() or not outcomes_path.is_file():
+        raise TrentDataError("download the authoritative Trent Gamma outcomes first")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if (
+        manifest.get("config_sha256") != config.config_sha256
+        or manifest.get("outcomes_sha256") != _sha256(outcomes_path)
+    ):
+        raise TrentDataError("Trent Gamma outcome archive differs")
+    table = pq.read_table(outcomes_path)
+    if table.num_rows != dataset.expected_files:
+        raise TrentDataError("Trent Gamma outcome count differs")
+    rows = {str(row["market_id"]): row for row in table.to_pylist()}
+    if len(rows) != table.num_rows:
+        raise TrentDataError("Trent Gamma market IDs are duplicated")
+    return rows, {
+        "manifest_path": str(manifest_path),
+        "manifest_sha256": _sha256(manifest_path),
+        "outcomes_path": str(outcomes_path),
+        "outcomes_sha256": _sha256(outcomes_path),
+        "markets": len(rows),
+        "label_source": "gamma_authoritative_resolved_outcome",
+        "fee_rate": config.expected_fee_rate,
+        "fee_exponent": config.expected_fee_exponent,
+    }
+
+
 def load_trent_decision_batch(
     config_path: str | Path,
+    outcome_config_path: str | Path,
     data_root: str | Path,
     *,
     decision_seconds_before_end: int,
@@ -257,6 +542,9 @@ def load_trent_decision_batch(
     target_notional_usdc: float,
 ) -> tuple[DecisionBatch, dict[str, Any]]:
     config = load_trent_config(config_path)
+    gamma, gamma_provenance = load_trent_gamma_outcomes(
+        outcome_config_path, data_root
+    )
     dataset_dir = config.dataset_dir(data_root)
     manifest_path = dataset_dir / "manifest.json"
     if not manifest_path.is_file():
@@ -315,7 +603,7 @@ def load_trent_decision_batch(
             FROM read_parquet('{glob}', filename=true)
         )
         SELECT
-            regexp_extract(filename, '(btc5m_[^/]+)', 1) AS condition_id,
+            regexp_extract(filename, 'btc5m_market(\\d+)_', 1) AS market_id,
             market_start_s,
             count(*) AS n_ticks,
             arg_max(up_mid, ts) FILTER (
@@ -373,11 +661,10 @@ def load_trent_decision_batch(
             min(ts) FILTER (
                 WHERE ts >= market_start_s * 1000 + {execution_offset_ms}
                   AND execution_valid
-            ) AS execution_ts,
-            arg_max(up_mid, ts) AS terminal_mid_up
+            ) AS execution_ts
         FROM raw
         GROUP BY filename, market_start_s
-        ORDER BY market_start_s, condition_id
+        ORDER BY market_start_s, market_id
         """
     ).fetch_arrow_table()
     connection.close()
@@ -449,14 +736,16 @@ def load_trent_decision_batch(
         & (total_sizes >= 0).all(dim=1)
     )
     snapshot_valid = timely & finite & bounded & (bids <= asks).all(dim=1)
-    terminal = floats("terminal_mid_up")
-    outcomes = torch.where(
-        torch.isfinite(terminal),
-        (terminal > 0.5).to(torch.float64),
-        torch.full_like(terminal, float("nan")),
+    market_ids = tuple(str(value) for value in table["market_id"].to_pylist())
+    if any(market_id not in gamma for market_id in market_ids):
+        raise TrentDataError("Gamma outcome is missing from adapted Trent rows")
+    outcomes = torch.tensor(
+        [float(gamma[market_id]["outcome_up"]) for market_id in market_ids],
+        dtype=torch.float64,
     )
+    condition_ids = tuple(str(gamma[value]["condition_id"]) for value in market_ids)
     batch = DecisionBatch(
-        condition_ids=tuple(str(value) for value in table["condition_id"].to_pylist()),
+        condition_ids=condition_ids,
         assets=("BTC",) * table.num_rows,
         market_start_s=start,
         market_end_s=end,
@@ -471,8 +760,8 @@ def load_trent_decision_batch(
         asks=asks,
         ask_depth_prices=execution_asks.unsqueeze(2),
         ask_depth_sizes=executable_sizes.unsqueeze(2),
-        snapshot_valid=snapshot_valid & torch.isfinite(outcomes),
-        label_source="trent_final_token_mid_inferred_development_only",
+        snapshot_valid=snapshot_valid,
+        label_source="gamma_authoritative_resolved_outcome",
     )
     return (
         batch,
@@ -489,5 +778,6 @@ def load_trent_decision_batch(
             "execution_semantics": (
                 "best ask with total-ask-size availability approximation"
             ),
+            "gamma": gamma_provenance,
         },
     )

@@ -532,6 +532,8 @@ def _evaluate(
     coarse_model: LookupModel,
     probability_up: torch.Tensor | None,
     config: RegimeConfig,
+    *,
+    platform_fee_exponent: float = 1.0,
 ) -> Evaluation:
     return evaluate_batch(
         batch,
@@ -547,6 +549,7 @@ def _evaluate(
         extra_cost_per_share=config.extra_cost_per_share,
         require_market_favorite=False,
         probability_up_override=probability_up,
+        platform_fee_exponent=platform_fee_exponent,
     )
 
 
@@ -970,6 +973,8 @@ def _run_variant(
     full_features: torch.Tensor,
     feature_names: tuple[str, ...],
     device: torch.device,
+    *,
+    platform_fee_exponent: float = 1.0,
 ) -> VariantResult:
     coarse_edges = _uniform_edges(config.coarse_price_bin_width, device)
     fine_edges = _uniform_edges(config.fine_price_bin_width, device)
@@ -1042,7 +1047,13 @@ def _run_variant(
                     "iterations": logistic.iterations,
                 }
             )
-        result = _evaluate(validation, coarse, probability_up, config)
+        result = _evaluate(
+            validation,
+            coarse,
+            probability_up,
+            config,
+            platform_fee_exponent=platform_fee_exponent,
+        )
         fold_rows = _diagnostic_rows(
             variant,
             fold.fold_id,

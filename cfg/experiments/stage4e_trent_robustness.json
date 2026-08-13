@@ -3,6 +3,7 @@
   "experiment_id": "stage4e_trent_btc5m_early_source_robustness",
   "primary_config": "cfg/experiments/stage4e_regime_models.json",
   "dataset_config": "cfg/datasets/trent_btc5m_steps_stage4e.json",
+  "outcome_config": "cfg/datasets/trent_btc5m_gamma_stage4e.json",
   "chainlink_config": "cfg/datasets/polymarket_chainlink_btcusd_1m_stage4e_early.json",
   "period_start": "2026-02-21T15:55:00Z",
   "period_end_exclusive": "2026-03-24T20:10:00Z",
@@ -16,5 +17,5 @@
   "transition_horizon_seconds": 60,
   "execution_latency_seconds": 1,
   "execution_size_assumption": "target_notional_available_at_best_ask_only_if_total_ask_notional_covers_target",
-  "outcome_policy": "inferred_from_final_token_mid_development_only"
+  "outcome_policy": "gamma_authoritative_resolved_outcome"
 }

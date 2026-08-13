@@ -9,10 +9,19 @@ from polymath_1M.historical.trent import (
     TrentDataError,
     _local_record,
     load_trent_config,
+    load_trent_gamma_config,
 )
 
 
 class TrentAdapterTest(unittest.TestCase):
+    def test_gamma_config_matches_steps_and_legacy_fee_curve(self) -> None:
+        config = load_trent_gamma_config(
+            "cfg/datasets/trent_btc5m_gamma_stage4e.json"
+        )
+        self.assertEqual(config.gamma_series_id, "10684")
+        self.assertEqual(config.expected_fee_rate, 0.25)
+        self.assertEqual(config.expected_fee_exponent, 2.0)
+
     def test_local_record_accepts_only_nonempty_atomic_target(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary) / "steps.parquet"

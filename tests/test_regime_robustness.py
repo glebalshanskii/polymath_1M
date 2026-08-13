@@ -18,6 +18,9 @@ class RegimeRobustnessTest(unittest.TestCase):
             ("m0_coarse_lookup_10c", "m6_chainlink_regime_decay_lagged"),
         )
         self.assertEqual(
+            config.outcome_policy, "gamma_authoritative_resolved_outcome"
+        )
+        self.assertEqual(
             config.folds[-1].validation_end_exclusive_s,
             config.period_end_exclusive_s,
         )
