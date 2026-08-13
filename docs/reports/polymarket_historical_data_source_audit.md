@@ -107,14 +107,16 @@ SII-WANGZJ revision `6d3c336c39cf1a2dfe53d702ad2c110ab5bdbfde` публикуе�
 quotes on-chain отсутствуют, поэтому ask VWAP и shadow fill из этих данных
 восстановить нельзя.
 
-## Следующий исполняемый шаг
+## Результат Этапа 3 и следующий шаг
 
-1. Реализовать downloader/manifest для pinned Kacho revision.
-2. Нормализовать Kacho 5m в internal market/book/settlement contract и сделать
-   tiny end-to-end backtest.
-3. Реализовать PMXT hourly remote predicate adapter по Gamma condition IDs.
-4. На overlap `2026-04-13`–`2026-05-18` сравнить Kacho top-of-book с PMXT и
-   описать реальные gaps/расхождения.
-5. Только после integrity gate собирать primary chronological PMXT dataset для
-   Этапа 4. Raw third-party files и derived Parquet остаются в ignored `data/`
-   или `outputs/`; в git входят manifest, schemas, code и summary.
+Пункты downloader, Kacho adapter, PMXT remote predicate и fixed overlap smoke
+выполнены. На condition `0x21b0…bc6d` top-of-book совпал по всем четырём
+prices с absolute difference `0.00`; до первого causal PMXT snapshot были
+отброшены 8,245 pre-snapshot deltas. Полный результат:
+[Stage 3 report](murtazin_strategy_engine_stage3.md).
+
+Следующий шаг — собирать primary chronological PMXT dataset для Этапа 4:
+fixed Gamma universe, authoritative outcomes/rules, coverage masks и только
+после этого model/control screening. Raw third-party files и derived Parquet
+остаются в ignored `data/` или `outputs/`; в git входят manifests, schemas,
+code и summary.
