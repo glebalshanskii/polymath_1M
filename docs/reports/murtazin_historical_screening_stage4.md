@@ -75,7 +75,7 @@ execution best asks; maximum absolute difference — `0.00`.
 
 Artifact:
 `data/historical/stage4_pmxt_screening_20260414_20260422/openmarket_sanity.json`,
-SHA-256 `6abdbfeb7a1daf4b67e84402c95c6be34c610386f2f8e765c2cb53dcaf228681`.
+SHA-256 `b67b1e1289c14fbec7c947bfe5832529de5d51fedc639c3ed1a6c2c87a60bbb3`.
 OpenMarket rows не участвовали в model fitting или PnL.
 
 ## Deviations and amendments
