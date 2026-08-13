@@ -364,16 +364,42 @@ prospective paper trading.
 Подробности: [Stage 4e report](reports/murtazin_regime_models_stage4e.md) и
 [protocol](protocols/screening/0005_stage4e_regime_models.md).
 
-### Следующий practical шаг: Stage 4f stable shrinkage
+### Stage 4f: literal Markov entry rule
 
-Новый development contract должен использовать authoritative multi-regime
-labels, shrinkage прогноза к M0, feature stability/sign gates и nested
-source-aware walk-forward. Открытый May holdout — только diagnostic. Для
-подтверждения M7 нужен новый fixed prospective paper-trading horizon.
+Статус: **completed; both source variants rejected; no paper/live candidate**.
+
+- Впервые реализована exact структура псевдокода:
+  `j*=argmax(P[i])`, `p_hat=P[i,j*]`, destination persistence `P[j*,j*]`.
+- Из-за противоречия статьи до run зафиксированы два варианта без selection:
+  общий `gap>=0.05, tau>=0.87, ask 0.64–0.99` и строка третьего бота
+  `gap>0.05, tau>=0.75, ask 0.01–0.96`.
+- Девять expanding walk-forward folds покрывают 6,126 early Trent и 9,351
+  Kacho validation decisions, около 81 дня source chronology. Новый holdout
+  не открывался.
+- `core_tau87`: 0 signals на обоих sources; maximum eligible-range gap только
+  `0.0124/0.0345`, ниже 5¢.
+- `b27_tau75`: 6,846 Kacho fills, `-52,591.90 USDC`, PF `0.309`; 3,770 Trent
+  fills, `-18,189.58`, PF `0.600`. Все 9/9 folds отрицательны; результат
+  отрицателен даже до fees и execution haircut.
+- Причина: one-step price-state probability `P[i,j*]` не является terminal
+  payout probability и не сопоставима с ask. Широкий range систематически
+  создаёт ложный edge на дешёвых longshot tokens.
+
+Подробности: [Stage 4f report](reports/murtazin_literal_markov_stage4f.md),
+[ADR-0014](adr/0014-literal-markov-rule-rejected.md) и
+[frozen protocol](protocols/screening/0006_stage4f_literal_markov.md).
+
+### Следующий practical шаг: Stage 4g absorbing-terminal Markov
+
+Новый development contract должен строить causal finite-horizon chain с
+terminal `UP/DOWN` absorbing states, чтобы $P^h$ оценивала именно payout к
+resolution и была сопоставима с ask после fees. State/time discretization,
+regularization и model refresh фиксируются до run. Уже открытый May holdout —
+только diagnostic; подтверждение требует нового prospective horizon.
 
 ## Этап 5. Prospective paper trading
 
-Статус: **blocked until Stage 4f selects a cross-regime development candidate
+Статус: **blocked until Stage 4g selects a cross-regime development candidate
 and freezes a new prospective contract; collector burn-in may continue
 independently**.
 

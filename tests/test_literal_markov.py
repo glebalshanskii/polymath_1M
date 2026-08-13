@@ -119,6 +119,37 @@ class LiteralMarkovTest(unittest.TestCase):
         self.assertTrue(core.signal.item())
         self.assertFalse(b27.signal.item())
 
+    def test_no_signal_diagnostic_side_is_largest_in_range_gap(self) -> None:
+        batch = self._batch(previous_up=(0.10,), current_up=(0.10,))
+        batch.asks[0] = torch.tensor([0.80, 0.70], dtype=torch.float64)
+        edges = torch.tensor([0.0, 0.5, 1.000001], dtype=torch.float64)
+        matrix = torch.tensor([[0.60, 0.40], [0.20, 0.80]], dtype=torch.float64)
+        model = TransitionModel(
+            edges=edges,
+            counts=torch.tensor([[6, 4], [2, 8]], dtype=torch.int64),
+            row_support=torch.tensor([10, 10], dtype=torch.int64),
+            matrix=matrix,
+            destination=torch.tensor([0, 1], dtype=torch.int64),
+            maximum_probability=torch.tensor([0.60, 0.80], dtype=torch.float64),
+            destination_persistence=torch.tensor([0.60, 0.80]),
+        )
+        result = evaluate_literal_markov(
+            batch,
+            model,
+            self._variant(tau=0.87),
+            minimum_row_transitions=1,
+            target_notional_usdc=10.0,
+            fee_rate=0.0,
+            fee_exponent=1.0,
+            fee_round_decimals=4,
+            primary_extra_cost_per_share=0.0,
+            stress_extra_cost_per_share=0.0,
+        )
+        self.assertFalse(result.signal.item())
+        self.assertEqual(result.side.item(), 1)
+        self.assertAlmostEqual(result.gap.item(), 0.10)
+        self.assertAlmostEqual(result.funnel["maximum_gap_after_ask"], 0.10)
+
     @staticmethod
     def _variant(
         *, tau: float, operator: str = "greater_equal", gap: float = 0.05

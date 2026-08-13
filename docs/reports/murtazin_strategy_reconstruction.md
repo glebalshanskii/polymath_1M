@@ -165,8 +165,11 @@ $$
 только при достаточном gap.
 
 Неполная часть: `max(P[current_state])` не является вероятностью
-terminal payout. Поэтому literal formula — baseline, а ордер основывается
-на прямой terminal model.
+terminal payout. Stage 4f впервые проверил literal formula отдельно: общий
+`tau=0.87` дал ноль signals, а табличный `0xB27 tau=0.75` был убыточен во всех
+девяти folds. Поэтому Stage 3–4e считаются terminal-model strategies с Markov
+feature, а не воспроизведением псевдокода. Результат:
+[Stage 4f report](murtazin_literal_markov_stage4f.md).
 
 ## 4. Практическая модель
 
@@ -248,6 +251,10 @@ $$
 | `favorite_hourly` | BTC/ETH hourly, 83–97¢, high confidence | BTC/ETH 1h; ask 0.83–0.97; net edge ≥3¢; persistence ≥0.87 | terminal model вместо `max(P)`; fixed small size |
 | `directional_mid` | BTC/ETH directional 64–83¢; также заявлены 99.5–99.8¢ locks | BTC/ETH; 15m и 1h как разные configs; ask 0.64–0.83; net edge ≥5¢ | level locks в MVP выключены: upside ≤0.5¢ не покрывает operational tail risk |
 | `multi_asset_short` | BTC/ETH/SOL/BNB/XRP, 5m, широкий range | BTC/ETH/SOL/XRP; 5m и 15m separately; ask 0.05–0.95; net edge ≥5¢ | BNB добавим после capture точного resolution feed; убираем 1–5¢/95–96¢ tails из MVP |
+
+В общем псевдокоде статьи `tau=0.87`, но таблица (2.7) задаёт для
+`0xB27BC932` отдельный `tau>=0.75`. Это не свободный hyperparameter: Stage 4f
+прогнал обе source-defined версии без tuning и отклонил обе.
 
 Threshold считается **после** fee и execution buffer. Это важнее буквального
 совпадения с псевдокодом: нам нужен исполнимый edge, а не красивое

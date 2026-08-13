@@ -16,10 +16,10 @@ shares криптовалютных `Up/Down` markets. Рынки и профи�
 2. торговать directional opportunities в среднем диапазоне цен;
 3. расширить тот же signal на несколько assets и коротких markets.
 
-Первый рабочий вариант — простая empirical terminal-probability model,
-fixed-size FAK orders с worst-price limit и `hold_to_resolution`. Буквальная
-one-step Markov формула остаётся baseline, но не допускается к live
-orders, пока не покажет net edge после fees и slippage.
+Базовая исполнимая реализация — empirical terminal-probability model,
+fixed-size FAK orders с worst-price limit и `hold_to_resolution`. Ни один
+вариант пока не прошёл все проверки для paper/live. Буквальная one-step
+Markov формула отдельно проверена и отклонена в Stage 4f.
 
 - [Ответы по площадке, профилям и моделям](docs/reports/murtazin_strategy_reconstruction.md)
 - [Практический план](docs/plan.md)
@@ -96,6 +96,16 @@ Trent interval дала `-129.61 USDC`, а на one-shot Kacho/Gamma holdout —
 четыре frozen gates; M6 отклонена, M0 также не принят из-за отрицательного
 early result. В проекте пока нет стратегии для paper/live. Детали — в
 [Stage 4e report](docs/reports/murtazin_regime_models_stage4e.md).
+
+Этап 4f наконец проверил опубликованную Markov-формулу буквально, с
+`j*=argmax(P[i])` и destination persistence `P[j*,j*]`. Общий `tau=0.87`
+дал 0 signals на 15,477 out-of-sample decisions. Строка третьего бота
+`tau=0.75` дала 10,616 fills, но все 9/9 folds отрицательны:
+Kacho `-52,591.90 USDC`, PF 0.309; отдельный Trent result `-18,189.58`,
+PF 0.600. Формула смешивает вероятность следующего price state с terminal
+payout probability и создаёт ложный edge на дешёвых tokens. Оба варианта
+отклонены; детали — в
+[Stage 4f report](docs/reports/murtazin_literal_markov_stage4f.md).
 
 Запуск аудита:
 
@@ -233,3 +243,14 @@ uv run polymath_1M stage4e-early-robustness
 Каждая модель сохраняет exact decisions, fold metrics и self-contained Plotly
 PnL diagnostics в `outputs/regime_models/`. One-shot `stage4e-holdout` уже
 выполнен и намеренно отказывается перезаписать canonical artifact.
+
+Буквальная проверка двух зафиксированных в статье Markov-вариантов:
+
+```bash
+uv run polymath_1M stage4f-literal-markov \
+  --config cfg/experiments/stage4f_literal_markov.json
+```
+
+Run сохраняет per-decision ledger, fold metrics, transition matrices и
+self-contained Plotly в ignored `outputs/literal_markov/`. Новый holdout эта
+команда не читает.

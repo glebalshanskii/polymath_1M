@@ -103,7 +103,7 @@ class LiteralEvaluation:
     stress_pnl: torch.Tensor
     filled: torch.Tensor
     status_code: torch.Tensor
-    funnel: dict[str, int]
+    funnel: dict[str, int | float | None]
 
 
 @dataclass(frozen=True)
@@ -379,9 +379,14 @@ def evaluate_literal_markov(
     persistence_pass = persistence >= variant.minimum_destination_persistence
     valid = batch.snapshot_valid.unsqueeze(1)
     side_signal = valid & supported & in_range & gap_pass & persistence_pass
-    comparable_gap = torch.where(side_signal, gap, torch.full_like(gap, -torch.inf))
-    side = torch.argmax(comparable_gap, dim=1)
     signal = side_signal.any(dim=1)
+    signal_gap = torch.where(side_signal, gap, torch.full_like(gap, -torch.inf))
+    diagnostic_candidate = valid & supported & in_range
+    diagnostic_gap = torch.where(
+        diagnostic_candidate, gap, torch.full_like(gap, -torch.inf)
+    )
+    comparable_gap = torch.where(signal[:, None], signal_gap, diagnostic_gap)
+    side = torch.argmax(comparable_gap, dim=1)
     gather = side[:, None]
 
     depth_prices = batch.ask_depth_prices
@@ -435,6 +440,7 @@ def evaluate_literal_markov(
     market_supported = (valid & supported).any(dim=1)
     market_range = (valid & supported & in_range).any(dim=1)
     market_gap = (valid & supported & in_range & gap_pass).any(dim=1)
+    eligible_range_gap = gap[diagnostic_candidate]
     status = torch.full((len(batch),), 1, dtype=torch.int64, device=states.device)
     status[batch.snapshot_valid & ~market_supported] = 2
     status[market_supported & ~market_range] = 3
@@ -472,6 +478,9 @@ def evaluate_literal_markov(
             "row_supported": int(market_supported.sum().item()),
             "ask_in_range": int(market_range.sum().item()),
             "gap_pass": int(market_gap.sum().item()),
+            "maximum_gap_after_ask": float(eligible_range_gap.max().item())
+            if eligible_range_gap.numel()
+            else None,
             "destination_persistence_pass": int(signal.sum().item()),
             "signals": int(signal.sum().item()),
             "fills": int(filled.sum().item()),
