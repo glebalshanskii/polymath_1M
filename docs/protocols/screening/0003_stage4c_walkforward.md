@@ -111,3 +111,12 @@ diagnostics и не меняют решение.
 - `fail`: test week навсегда исключается из tuning, нужен новый data horizon
   или новый заранее описанный mechanism;
 - `inconclusive`: не является ни доказательством прибыли, ни убытка.
+
+## Pre-data performance amendment — 2026-08-13
+
+Первый PMXT build был остановлен после шести hourly checkpoints: default
+DuckDB thread pools расходовали 7.5 GB RAM при network-bound 1.6 aggregate
+CPU и давали непрактичный ETA. Data/feature semantics не меняются. Каждый
+hourly query ограничен одним DuckDB thread и 1 GB, а independent remote
+objects обрабатываются 18 workers. Шесть content-addressed checkpoints
+переиспользуются; target values до amendment не анализировались.

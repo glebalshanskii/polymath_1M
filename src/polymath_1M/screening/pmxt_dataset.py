@@ -195,7 +195,7 @@ def _query_causal_tops(
             ORDER BY p.timestamp_received DESC, p.timestamp DESC
         ) = 1
     """
-    connection = duckdb.connect()
+    connection = duckdb.connect(config={"threads": "1", "memory_limit": "1GB"})
     try:
         connection.register("requested", requested)
         table = connection.execute(sql, [source_url, *conditions]).fetch_arrow_table()
