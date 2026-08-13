@@ -231,14 +231,10 @@ def _grid_metrics(
     ).values[:, 1:]
     maximum_drawdown = (peaks - cumulative).amax(dim=1)
     half = data.batch.market_start_s.numel() // 2
-    stress_mask = _eligibility_matrix(
-        data,
-        stress,
-        grid,
-        edge=stress.net_edge,
-        execution_filled=stress.filled,
-    )
-    stress_pnl = stress_mask * stress.net_pnl.unsqueeze(0)
+    # Stress reprices the primary trade set. Reapplying the edge gate with a
+    # larger cost would silently remove marginal trades and turn the stress
+    # scenario into a different strategy.
+    stress_pnl = mask * stress.net_pnl.unsqueeze(0)
     return GridMetrics(
         fill_count=fills,
         fill_fraction=fills.to(dtype=pnl.dtype) / data.batch.market_start_s.numel(),
@@ -249,7 +245,7 @@ def _grid_metrics(
         max_drawdown=maximum_drawdown,
         half1_pnl=pnl[:, :half].sum(dim=1),
         half2_pnl=pnl[:, half:].sum(dim=1),
-        stress_fill_count=stress_mask.sum(dim=1),
+        stress_fill_count=fills,
         stress_net_pnl=stress_pnl.sum(dim=1),
     )
 
