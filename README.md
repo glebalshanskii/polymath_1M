@@ -186,3 +186,23 @@ uv run polymath_1M stage4d-capital-chart \
 scenario percentages. Проект больше не выводит bankroll из неподтверждённого
 лимита 0.5%; решение зафиксировано в
 [ADR-0010](docs/adr/0010-live-capital-limits-need-data.md).
+
+График по реальному UTC-времени с Gamma outcomes, выбранной side, signal
+probability/ask, edge, persistence, gates, PnL и position size требует
+visualization-only BTCUSDT context:
+
+```bash
+uv run polymath_1M binance-context-download \
+  --config cfg/datasets/binance_btcusdt_1m_202604_202605.json \
+  --data-root data/historical
+uv run polymath_1M stage4d-time-chart \
+  --config cfg/experiments/stage4d_uniform_plateau.json \
+  --proposal <stage4d-run>/proposal.json \
+  --binance-config cfg/datasets/binance_btcusdt_1m_202604_202605.json \
+  --data-root data/historical \
+  --starting-capital 2000
+```
+
+BTCUSDT — только визуальный proxy, не Chainlink resolution price и не input
+стратегии. Config содержит SHA-256 и только данные до Stage 4d holdout; детали
+в [ADR-0011](docs/adr/0011-btc-price-is-visual-context.md).
