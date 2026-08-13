@@ -9,6 +9,12 @@ from .collector.replay import replay_run
 from .collector.runner import run_collector
 from .historical.download import download_kacho_dataset
 from .historical.overlap import run_pmxt_overlap_smoke
+from .screening.calibration import run_stage4b_calibration
+from .screening.holdout import run_stage4b_test
+from .screening.openmarket import run_openmarket_sanity
+from .screening.pmxt_dataset import build_stage4_pmxt_dataset
+from .screening.run import run_stage4_screening
+from .screening.universe import build_stage4_universe
 from .strategy.backtest import run_kacho_backtest
 
 
@@ -115,6 +121,75 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/overlap",
         help="ignored directory for overlap artifacts",
     )
+    universe = subparsers.add_parser(
+        "stage4-build-universe",
+        help="archive Gamma pages and build the frozen Stage 4 market universe",
+    )
+    universe.add_argument(
+        "--config",
+        default="cfg/experiments/stage4_pmxt_screening.json",
+        help="path to the frozen Stage 4 screening config",
+    )
+    pmxt_dataset = subparsers.add_parser(
+        "stage4-build-pmxt",
+        help="build restartable causal PMXT snapshots for the Stage 4 universe",
+    )
+    pmxt_dataset.add_argument(
+        "--config",
+        default="cfg/experiments/stage4_pmxt_screening.json",
+        help="path to the frozen Stage 4 screening config",
+    )
+    screening = subparsers.add_parser(
+        "stage4-screen",
+        help="select and test Stage 4 strategies on frozen PMXT snapshots",
+    )
+    screening.add_argument(
+        "--config",
+        default="cfg/experiments/stage4_pmxt_screening.json",
+        help="path to the frozen Stage 4 screening config",
+    )
+    screening.add_argument(
+        "--output-root",
+        default="outputs/screening",
+        help="ignored directory for Stage 4 screening artifacts",
+    )
+    sanity = subparsers.add_parser(
+        "stage4-openmarket-sanity",
+        help="compare one PMXT market with the pinned independent OpenMarket archive",
+    )
+    sanity.add_argument(
+        "--config",
+        default="cfg/experiments/stage4_pmxt_screening.json",
+        help="path to the frozen Stage 4 screening config",
+    )
+    calibration = subparsers.add_parser(
+        "stage4b-calibrate",
+        help="calibrate practical signal gates on train/validation only",
+    )
+    calibration.add_argument(
+        "--config",
+        default="cfg/experiments/stage4b_signal_calibration.json",
+        help="path to the frozen Stage 4b calibration config",
+    )
+    calibration.add_argument(
+        "--output-root",
+        default="outputs/calibration",
+        help="ignored directory for Stage 4b calibration artifacts",
+    )
+    holdout = subparsers.add_parser(
+        "stage4b-test",
+        help="run the frozen Stage 4b strategy once on untouched test",
+    )
+    holdout.add_argument(
+        "--config",
+        default="cfg/experiments/stage4b_selected.json",
+        help="path to the committed Stage 4b selected config",
+    )
+    holdout.add_argument(
+        "--output-root",
+        default="outputs/screening",
+        help="ignored directory for the one-shot Stage 4b test artifact",
+    )
     return parser
 
 
@@ -159,3 +234,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(run_kacho_backtest(args.config, args.output_root))
     elif args.command == "pmxt-overlap-smoke":
         print(run_pmxt_overlap_smoke(args.config, args.output_root))
+    elif args.command == "stage4-build-universe":
+        print(build_stage4_universe(args.config))
+    elif args.command == "stage4-build-pmxt":
+        print(build_stage4_pmxt_dataset(args.config))
+    elif args.command == "stage4-screen":
+        print(run_stage4_screening(args.config, args.output_root))
+    elif args.command == "stage4-openmarket-sanity":
+        print(run_openmarket_sanity(args.config))
+    elif args.command == "stage4b-calibrate":
+        print(run_stage4b_calibration(args.config, args.output_root))
+    elif args.command == "stage4b-test":
+        print(run_stage4b_test(args.config, args.output_root))
