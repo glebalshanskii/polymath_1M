@@ -1,6 +1,6 @@
 # Stage 4c protocol: longer walk-forward screening
 
-- Статус: frozen before Kacho price download
+- Статус: development executed; `inconclusive_no_candidate`; holdout unopened
 - Frozen: 2026-08-13
 - Venue: Polymarket CLOB
 - Market config: `cfg/experiments/stage4c_market_data.json`

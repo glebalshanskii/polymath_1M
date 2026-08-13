@@ -2,10 +2,10 @@
 
 - Обновлено: 2026-08-13
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Этап 4b завершён; calibrated candidate провалил test;
-  24-hour Stage 2 validation идёт параллельно**
-- Следующий deliverable: Stage 4c с более длинным новым historical horizon,
-  walk-forward validation и новым untouched holdout; Stage 5 пока не разрешён
+- Текущий этап: **Этап 4c завершён `inconclusive_no_candidate`; holdout не
+  открыт; 24-hour Stage 2 validation идёт параллельно**
+- Следующий deliverable: Stage 4d с более гладкой probability/policy model и
+  заранее зафиксированной plateau stability; Stage 5 пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -251,18 +251,49 @@ prospective paper trading.
   вторая половина `-20.50 USDC`, stress `-32.70 USDC`.
 - Итог — `fail`. Test-период 2026-04-20/21 с этого момента запрещён для
   tuning и повторного selection. Stage 5 не разрешён.
+- Self-review Stage 4c выявил, что историческая 2¢ stress-диагностика Stage 4b
+  меняла trade set повторным edge gate. Stress metric помечена несопоставимой;
+  primary `-1.88 USDC`, PF `0.996` и отрицательная вторая половина независимо
+  сохраняют итог `fail`.
 
 Подробности: [Stage 4b report](reports/murtazin_signal_calibration_stage4b.md),
 [ADR-0007](adr/0007-stage4b-calibration-result.md) и
 [frozen protocol](protocols/screening/0002_stage4b_signal_calibration.md).
 
-### Следующий practical шаг: Stage 4c
+### Stage 4c: longer walk-forward calibration
 
-Не подбирать ещё один threshold на уже открытом двухдневном test. Собрать
-новый более длинный PMXT horizon, сделать несколько chronological
-walk-forward folds и потребовать прибыль после costs в большинстве folds.
-Последний новый период заранее оставить единственным holdout. Только кандидат,
-который проходит этот gate, допускается в Stage 5 full-L2 paper trading.
+Статус: **completed 2026-08-13; `inconclusive_no_candidate`; holdout unopened**.
+
+- Вместо многодневной PMXT bulk extraction после pre-target throughput
+  benchmark использован pinned Kacho 5m top/size. Gamma даёт authoritative
+  outcomes и per-market fee. Точный universe содержит 42,432 contracts всех
+  durations; Stage 4c использует 29,952 5m markets.
+- Development `[2026-04-22, 2026-05-14)` содержит 25,344 markets,
+  25,339 valid causal snapshots (99.98%). Последующие четыре дня loader не
+  читал и proposal фиксирует `holdout_rows_loaded = 0`.
+- Четыре expanding walk-forward folds × 7,020 cells × пять families проверены
+  на GPU. Ни один из 35,100 cells не прошёл все 12 exposure, profitability,
+  stress, fold и neighbour gates.
+- SOL near-miss: 298 fills, `+90.75 USDC`, PF `1.305`, все 4/4 primary/stress
+  folds положительны, 2¢ stress `+63.42 USDC`. Но worst neighbour сохранил
+  только 19% PnL против frozen 50%; candidate не выбран постфактум.
+- Self-review исправил stress semantics: +2¢ переоценивает те же primary
+  сделки. Предварительный artifact с меняющимся trade set не используется.
+- Stage 4c test не запускался; Stage 5 не разрешён.
+
+Подробности: [Stage 4c report](reports/murtazin_walkforward_stage4c.md),
+[ADR-0008](adr/0008-stage4c-walkforward-result.md) и
+[frozen protocol](protocols/screening/0003_stage4c_walkforward.md).
+
+### Следующий practical шаг: Stage 4d
+
+Не ослаблять neighbour gate и не открывать holdout для увиденного SOL cell.
+На development сравнить текущий ступенчатый lookup с одной заранее выбранной
+сглаженной probability calibration либо plateau/ensemble policy. До запуска
+зафиксировать model, selection rule и acceptance. Если новый candidate пройдёт
+development gate, закоммитить его и один раз открыть всё ещё не использованный
+`[2026-05-14, 2026-05-18)` holdout. Только historical pass допускается в
+Stage 5 full-L2 paper trading.
 
 ## Этап 5. Prospective paper trading
 

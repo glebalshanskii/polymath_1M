@@ -27,6 +27,10 @@ PnL, costs и устойчивости, затем один раз провер�
    `-32.70 USDC` при 2¢/share. Решение — `fail`.
 5. Candidate не запускается в Stage 5. Период test 2026-04-20/21 больше не
    используется для выбора family, features или thresholds.
+6. Amendment 2026-08-13: Stage 4c self-review показал, что 2¢ stress повторно
+   применял edge gate и менял trade set. Старые stress values остаются в
+   artifact как provenance, но не трактуются как repricing тех же сделок.
+   Решение `fail` не меняется из-за независимых primary PnL/PF/half gates.
 
 ## Следствия
 

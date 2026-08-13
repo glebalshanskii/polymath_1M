@@ -68,9 +68,18 @@ result — `inconclusive_no_candidate`, а Stage 5 paper trading не разре
 profitability gates. На validation выбран `multi_asset_short_5m`: 60 fills,
 `+31.73 USDC`, PF 1.121 и положительный 2¢ stress. После commit config
 untouched test открыт один раз: 106 fills, но `-1.88 USDC`, PF 0.996 и
-`-32.70 USDC` в stress. Итог — `fail`; этот test больше не используется для
-tuning, Stage 5 не разрешён. Детали — в
+отрицательная вторая половина. Итог — `fail`; этот test больше не используется
+для tuning, Stage 5 не разрешён. Поздний self-review выявил, что старая stress
+диагностика меняла trade set; primary failure от неё не зависит. Детали — в
 [Stage 4b report](docs/reports/murtazin_signal_calibration_stage4b.md).
+
+Этап 4c проверил новый 22-дневный development период четырьмя walk-forward
+folds. В 35,100 grid cells разумная частота и прибыль встречаются, но ни один
+cell не прошёл весь frozen stability gate. Лучший SOL near-miss дал 298 fills,
+`+90.75 USDC`, PF 1.305 и положительный 2¢ result во всех folds, однако один
+соседний threshold сохранил лишь 19% PnL вместо требуемых 50%. Статус —
+`inconclusive_no_candidate`; новый четырёхдневный holdout не читался. Детали —
+в [Stage 4c report](docs/reports/murtazin_walkforward_stage4c.md).
 
 Запуск аудита:
 
@@ -128,3 +137,19 @@ uv run polymath_1M stage4b-calibrate
 
 Frozen one-shot holdout уже выполнен. `stage4b-test` намеренно отказывается
 повторно открывать существующий canonical test artifact.
+
+Stage 4c data build и development-only walk-forward calibration:
+
+```bash
+uv run polymath_1M stage4-build-universe \
+  --config cfg/experiments/stage4c_market_data.json
+uv run polymath_1M kacho-download \
+  --config cfg/datasets/kacho_5m.json \
+  --data-root data/historical \
+  --assets BTC,ETH,SOL,XRP
+uv run polymath_1M stage4c-calibrate \
+  --config cfg/experiments/stage4c_walkforward.json
+```
+
+Calibration не читает Stage 4c holdout. Поскольку eligible candidate не
+получен, selected config и команда открытия holdout намеренно отсутствуют.
