@@ -57,7 +57,7 @@ def run_openmarket_sanity(config_path: str | Path) -> Path:
                 coverage.append(
                     {
                         "date": date_string,
-                        "url": response.geturl(),
+                        "url": url,
                         "status": response.status,
                         "bytes": int(response.headers.get("Content-Length", 0)),
                         "etag": response.headers.get("ETag"),
@@ -165,5 +165,4 @@ def run_openmarket_sanity(config_path: str | Path) -> Path:
         encoding="utf-8",
     )
     os.replace(temporary, path)
-    result["artifact_sha256"] = _sha256(path)
     return path
