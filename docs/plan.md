@@ -351,6 +351,8 @@ acceptance, затем self-review, и только после явного ра
 - Отдельный early Trent robustness experiment расширяет development chronology
   примерно до 81 дня (около 86 дней до конца всё ещё закрытого Kacho holdout).
   Его approximate best-ask PnL не складывается с primary Kacho PnL.
+- Primary development выбрал causal-lagged M6 и зафиксировал selected config
+  с one-shot holdout gate; сам holdout пока не открыт.
 
 Protocol: [Stage 4e regime models](protocols/screening/0005_stage4e_regime_models.md).
 

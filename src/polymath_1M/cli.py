@@ -20,6 +20,7 @@ from .screening.holdout import run_stage4b_test
 from .screening.openmarket import run_openmarket_sanity
 from .screening.plateau import run_stage4d_calibration
 from .screening.pmxt_dataset import build_stage4_pmxt_dataset
+from .screening.regime_holdout import run_stage4e_holdout
 from .screening.regime_models import run_stage4e_development
 from .screening.regime_robustness import run_stage4e_early_robustness
 from .screening.run import run_stage4_screening
@@ -374,6 +375,25 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/regime_models",
         help="ignored directory for source-specific robustness artifacts",
     )
+    regime_holdout = subparsers.add_parser(
+        "stage4e-holdout",
+        help="run the selected Stage 4e model once on the frozen holdout",
+    )
+    regime_holdout.add_argument(
+        "--config",
+        default="cfg/experiments/stage4e_selected.json",
+        help="path to the selected Stage 4e model and holdout contract",
+    )
+    regime_holdout.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory containing pinned Kacho and Chainlink inputs",
+    )
+    regime_holdout.add_argument(
+        "--output-root",
+        default="outputs/holdout",
+        help="ignored directory for the one-shot holdout artifacts",
+    )
     return parser
 
 
@@ -472,6 +492,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     elif args.command == "stage4e-early-robustness":
         print(
             run_stage4e_early_robustness(
+                args.config,
+                data_root=args.data_root,
+                output_root=args.output_root,
+            )
+        )
+    elif args.command == "stage4e-holdout":
+        print(
+            run_stage4e_holdout(
                 args.config,
                 data_root=args.data_root,
                 output_root=args.output_root,

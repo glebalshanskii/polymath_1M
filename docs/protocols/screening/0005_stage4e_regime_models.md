@@ -170,3 +170,16 @@ development-only выводится из финального token mid.
 Chainlink features берутся из отдельного pinned minute archive с тем же
 causal lag M6. Trent repository pin:
 `6be20463ce33795178c121e7bd15ed428904b5bd`, license `CC-BY-SA-4.0`.
+
+## Amendment 2026-08-13: frozen M6 holdout gate
+
+Primary development run `20260813T123431Z` выбрал
+`m6_chainlink_regime_decay_lagged`: 637 fills, `+133.28 USDC`, PF `1.138`,
+5/6 positive folds, max drawdown `62.61 USDC`, 2¢ stress `+58.15 USDC`.
+Selected config фиксирует hashes proposal, Kacho/Chainlink manifests и
+authoritative Gamma universe до открытия holdout.
+
+One-shot holdout `[2026-05-14 00:00, 2026-05-18 10:35) UTC` получает статус
+`pass`, только если есть не менее 50 fills, net PnL > 0, PF >= 1.10 и same-trade
+2¢ stress PnL > 0. Иначе `fail`; при data/hash/coverage violation — `invalid`.
+Новые features или thresholds после просмотра holdout не выбираются.
