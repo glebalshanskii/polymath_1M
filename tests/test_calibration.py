@@ -11,6 +11,7 @@ from polymath_1M.screening.calibration import (
     _neighbor_floor,
 )
 from polymath_1M.screening.calibration_config import load_calibration_config
+from polymath_1M.screening.holdout import _test_gate, load_selected_config
 
 
 class CalibrationTest(unittest.TestCase):
@@ -25,6 +26,11 @@ class CalibrationTest(unittest.TestCase):
             config.stress_extra_cost_per_share,
             config.selection_extra_cost_per_share,
         )
+
+    def test_selected_config_loads_without_opening_test(self) -> None:
+        config = load_selected_config("cfg/experiments/stage4b_selected.json")
+        self.assertEqual(config.selected["strategy_id"], "multi_asset_short_5m")
+        self.assertEqual(config.selected["grid_indices"], [3, 0, 0, 0, 0])
 
     def test_neighbor_floor_ignores_only_missing_grid_neighbors(self) -> None:
         grid = ParameterGrid(
@@ -68,6 +74,31 @@ class CalibrationTest(unittest.TestCase):
             markets=100,
         )
         self.assertEqual(eligible.tolist(), [True, False, False])
+
+    def test_holdout_gate_checks_exposure_before_profit(self) -> None:
+        config = load_calibration_config(
+            "cfg/experiments/stage4b_signal_calibration.json"
+        )
+        summary = {
+            "markets": 100,
+            "valid_snapshots": 100,
+            "max_drawdown_usdc": 10.0,
+            "maximum_positive_day_share": 0.5,
+        }
+        metrics = {
+            "fills": 19,
+            "net_pnl_usdc": -10.0,
+            "profit_factor": 0.0,
+            "profit_factor_infinite": False,
+            "half1_pnl_usdc": -5.0,
+            "half2_pnl_usdc": -5.0,
+            "stress_fills": 0,
+            "stress_net_pnl_usdc": -10.0,
+        }
+        status, adequacy, failures = _test_gate(summary, metrics, config)
+        self.assertEqual(status, "inconclusive")
+        self.assertEqual(adequacy, ["minimum_test_fills:20"])
+        self.assertEqual(failures, [])
 
 
 if __name__ == "__main__":
