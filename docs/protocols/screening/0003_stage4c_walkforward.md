@@ -30,6 +30,11 @@ validation паре дней, а в нескольких последовате�
 Последний пункт делает результат screening, а не capacity proof. Только
 positive holdout имеет право перейти к full-L2 prospective paper trading.
 
+Dataset считается пригодным только при наличии всех 1,440 hourly objects,
+совпадении universe/manifest/hash contracts и не менее 99% valid causal
+snapshots. При провале coverage experiment получает `invalid_data`, а не
+подменяет missing rows сделками или нулевым PnL.
+
 ## Expanding walk-forward
 
 Пять folds имеют общий train start 2026-04-22, expanding train и следующие

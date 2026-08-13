@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import unittest
+from unittest.mock import patch
 
 import torch
 
 from polymath_1M.screening.config import load_screening_config
 from polymath_1M.screening.pmxt_dataset import _valid_top_row
 from polymath_1M.screening.run import chronological_market_splits
+from polymath_1M.screening.run import _load_rows
 
 
 class ScreeningTest(unittest.TestCase):
@@ -45,6 +48,28 @@ class ScreeningTest(unittest.TestCase):
         invalid = _valid_top_row({"condition_id": "condition"}, snapshots)
         self.assertFalse(invalid["snapshot_valid"])
         self.assertEqual(invalid["invalid_reason"], "invalid_causal_top")
+
+    def test_loader_derives_expected_hours_from_config_period(self) -> None:
+        config = load_screening_config("cfg/experiments/stage4c_pmxt_data.json")
+        manifest = {
+            "data_contract_sha256": config.data_contract_sha256,
+            "hour_count": 1_440,
+            "market_count": 100,
+            "valid_count": 98,
+            "hours": [],
+        }
+        with (
+            patch("pathlib.Path.is_file", return_value=True),
+            patch("pathlib.Path.read_text", return_value=json.dumps(manifest)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "below the frozen 99% gate"):
+                _load_rows(config)
+
+        self.assertEqual(
+            int((config.period_end_exclusive - config.period_start).total_seconds())
+            // 3_600,
+            1_440,
+        )
 
 
 if __name__ == "__main__":
