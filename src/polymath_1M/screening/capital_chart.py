@@ -220,7 +220,9 @@ def _replay_trades(
     sorted_fees = torch.cat(fees)[order]
     sorted_extra = torch.cat(extra_cost)[order]
     sorted_pnl = torch.cat(pnl)[order]
-    position = sorted_fill_cost + sorted_fees + sorted_extra
+    # The frozen extra-cost haircut reduces modeled PnL but is not cash locked
+    # in the outcome-share position. Position outlay is shares plus platform fee.
+    position = sorted_fill_cost + sorted_fees
     ledger = _capital_ledger(sorted_pnl, position, starting_capital)
     expected_total = selected["walkforward"]
     if (

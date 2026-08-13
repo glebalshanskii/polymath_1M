@@ -27,6 +27,16 @@ class CapitalChartTest(unittest.TestCase):
                 100.0,
             )
 
+    def test_position_fraction_uses_cash_outlay_supplied_by_replay(self) -> None:
+        ledger = _capital_ledger(
+            torch.tensor([-2.0, 3.0], dtype=torch.float64),
+            torch.tensor([9.0, 10.0], dtype=torch.float64),
+            100.0,
+        )
+        self.assertEqual(ledger.capital_before.tolist(), [100.0, 98.0])
+        self.assertAlmostEqual(ledger.position_fraction[0].item(), 0.09)
+        self.assertAlmostEqual(ledger.position_fraction[1].item(), 10 / 98)
+
 
 if __name__ == "__main__":
     unittest.main()
