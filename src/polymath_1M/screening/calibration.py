@@ -7,7 +7,7 @@ import os
 import platform
 import subprocess
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -15,11 +15,16 @@ from typing import Any
 import pyarrow as pa
 import torch
 
-from polymath_1M.strategy.model import Evaluation, LookupModel, evaluate_batch, fit_lookup_model
+from polymath_1M.strategy.model import (
+    Evaluation,
+    LookupModel,
+    evaluate_batch,
+    fit_lookup_model,
+)
 from polymath_1M.strategy.parameters import StrategyConfig, load_strategy_config
 
 from .calibration_config import CalibrationConfig, load_calibration_config
-from .config import ScreeningConfig, load_screening_config
+from .config import load_screening_config
 from .run import (
     ScreeningData,
     _load_rows,
@@ -51,6 +56,8 @@ class GridMetrics:
     fill_count: torch.Tensor
     fill_fraction: torch.Tensor
     net_pnl: torch.Tensor
+    gross_profit: torch.Tensor
+    gross_loss: torch.Tensor
     profit_factor: torch.Tensor
     max_drawdown: torch.Tensor
     half1_pnl: torch.Tensor
@@ -195,6 +202,17 @@ def _grid_metrics(
 ) -> GridMetrics:
     if not torch.equal(primary.side, stress.side):
         raise CalibrationRunError("uniform cost changed side selection")
+    if not torch.equal(primary.filled, stress.filled) or not torch.equal(
+        primary.fill_shares, stress.fill_shares
+    ):
+        raise CalibrationRunError("uniform cost changed execution")
+    if bool(
+        (
+            stress.net_pnl[primary.filled]
+            > primary.net_pnl[primary.filled] + 1e-12
+        ).any().item()
+    ):
+        raise CalibrationRunError("stress cost improved a primary trade")
     mask = _eligibility_matrix(
         data,
         primary,
@@ -229,23 +247,21 @@ def _grid_metrics(
     ).values[:, 1:]
     maximum_drawdown = (peaks - cumulative).amax(dim=1)
     half = data.batch.market_start_s.numel() // 2
-    stress_mask = _eligibility_matrix(
-        data,
-        stress,
-        grid,
-        edge=stress.net_edge,
-        execution_filled=stress.filled,
-    )
-    stress_pnl = stress_mask * stress.net_pnl.unsqueeze(0)
+    # Stress reprices the primary trade set. Reapplying the edge gate with a
+    # larger cost would silently remove marginal trades and turn the stress
+    # scenario into a different strategy.
+    stress_pnl = mask * stress.net_pnl.unsqueeze(0)
     return GridMetrics(
         fill_count=fills,
         fill_fraction=fills.to(dtype=pnl.dtype) / data.batch.market_start_s.numel(),
         net_pnl=net,
+        gross_profit=positive,
+        gross_loss=negative,
         profit_factor=profit_factor,
         max_drawdown=maximum_drawdown,
         half1_pnl=pnl[:, :half].sum(dim=1),
         half2_pnl=pnl[:, half:].sum(dim=1),
-        stress_fill_count=stress_mask.sum(dim=1),
+        stress_fill_count=fills,
         stress_net_pnl=stress_pnl.sum(dim=1),
     )
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 
 import torch
 
@@ -8,13 +9,65 @@ from polymath_1M.screening.calibration import (
     GridMetrics,
     ParameterGrid,
     _eligible,
+    _grid_metrics,
     _neighbor_floor,
 )
 from polymath_1M.screening.calibration_config import load_calibration_config
 from polymath_1M.screening.holdout import _test_gate, load_selected_config
+from polymath_1M.strategy.model import Evaluation
+
+
+def _evaluation(*, edge: list[float], pnl: list[float]) -> Evaluation:
+    count = len(edge)
+    zeros = torch.zeros(count, dtype=torch.float64)
+    return Evaluation(
+        state_bin=torch.zeros(count, dtype=torch.int64),
+        probability=zeros,
+        support=torch.full((count,), 10, dtype=torch.int64),
+        persistence=torch.ones(count, dtype=torch.float64),
+        side=torch.zeros(count, dtype=torch.int64),
+        signal_ask=torch.full((count,), 0.5, dtype=torch.float64),
+        fill_vwap=torch.full((count,), 0.5, dtype=torch.float64),
+        fill_cost=zeros,
+        platform_fee=zeros,
+        net_edge=torch.tensor(edge, dtype=torch.float64),
+        fill_shares=torch.ones(count, dtype=torch.float64),
+        gross_pnl=zeros,
+        extra_cost=zeros,
+        net_pnl=torch.tensor(pnl, dtype=torch.float64),
+        filled=torch.ones(count, dtype=torch.bool),
+        status_code=torch.zeros(count, dtype=torch.int64),
+    )
 
 
 class CalibrationTest(unittest.TestCase):
+    def test_stress_reprices_same_primary_trade_set(self) -> None:
+        data = SimpleNamespace(
+            batch=SimpleNamespace(
+                snapshot_valid=torch.ones(2, dtype=torch.bool),
+                market_start_s=torch.arange(2, dtype=torch.int64),
+            )
+        )
+        grid = ParameterGrid(
+            indices=torch.zeros((1, 5), dtype=torch.int64),
+            minimum_ask=torch.tensor([0.4], dtype=torch.float64),
+            maximum_ask=torch.tensor([0.6], dtype=torch.float64),
+            minimum_net_edge=torch.tensor([0.02], dtype=torch.float64),
+            minimum_persistence=torch.tensor([0.0], dtype=torch.float64),
+            minimum_support=torch.tensor([1], dtype=torch.int64),
+            persistence_values=torch.tensor([0.0], dtype=torch.float64),
+        )
+        metrics = _grid_metrics(
+            data,
+            _evaluation(edge=[0.03, 0.03], pnl=[2.0, -1.0]),
+            _evaluation(edge=[0.01, 0.01], pnl=[1.0, -2.0]),
+            grid,
+        )
+        self.assertEqual(metrics.fill_count.tolist(), [2])
+        self.assertEqual(metrics.stress_fill_count.tolist(), [2])
+        self.assertEqual(metrics.net_pnl.tolist(), [1.0])
+        self.assertEqual(metrics.stress_net_pnl.tolist(), [-1.0])
+
     def test_frozen_config_loads(self) -> None:
         config = load_calibration_config(
             "cfg/experiments/stage4b_signal_calibration.json"
@@ -60,6 +113,8 @@ class CalibrationTest(unittest.TestCase):
             fill_count=torch.tensor([20, 19, 20]),
             fill_fraction=torch.tensor([0.2, 0.19, 0.2], dtype=torch.float64),
             net_pnl=torch.tensor([10.0, 10.0, -1.0], dtype=torch.float64),
+            gross_profit=torch.tensor([20.0, 20.0, 20.0], dtype=torch.float64),
+            gross_loss=torch.tensor([10.0, 10.0, 21.0], dtype=torch.float64),
             profit_factor=torch.tensor([1.2, 1.2, 1.2], dtype=torch.float64),
             max_drawdown=torch.tensor([5.0, 5.0, 5.0], dtype=torch.float64),
             half1_pnl=torch.tensor([4.0, 4.0, 4.0], dtype=torch.float64),

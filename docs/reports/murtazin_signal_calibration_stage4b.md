@@ -97,6 +97,12 @@ Test days: 2026-04-20 `+6.20 USDC`, 2026-04-21 `-8.08 USDC`. Поэтому
 Final status: **`fail`**. Exposure gate пройден, но провалены positive PnL,
 PF, second-half, stress и daily-concentration gates.
 
+> Correction 2026-08-13: self-review Stage 4c обнаружил, что эта historical
+> stress-диагностика повторно применяла edge gate после увеличения costs и
+> поэтому считала не тот же набор сделок. Stress numbers сохранены как
+> provenance старого artifact, но не считаются comparable repricing. Итоговый
+> `fail` не меняется: primary PnL, PF и second-half gates провалены независимо.
+
 Canonical test artifacts:
 `outputs/screening/stage4b_signal_calibration_20260414_20260422_selected_test/`.
 `result.json` SHA-256:
