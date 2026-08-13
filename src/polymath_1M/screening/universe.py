@@ -132,7 +132,25 @@ def build_stage4_universe(config_path: str | Path) -> Path:
     if universe_path.is_file() and manifest_path.is_file():
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         if manifest.get("data_contract_sha256") != config.data_contract_sha256:
-            raise UniverseDataError("existing universe belongs to a different config")
+            legacy_period_match = (
+                manifest.get("experiment_id") == config.experiment_id
+                and manifest.get("period_start") == config.period_start.isoformat()
+                and manifest.get("period_end_exclusive")
+                == config.period_end_exclusive.isoformat()
+            )
+            if not legacy_period_match:
+                raise UniverseDataError(
+                    "existing universe belongs to a different config"
+                )
+            manifest["data_contract_sha256"] = config.data_contract_sha256
+            manifest["config_sha256"] = config.config_sha256
+            temporary_manifest = manifest_path.with_suffix(".json.part")
+            temporary_manifest.write_text(
+                json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2)
+                + "\n",
+                encoding="utf-8",
+            )
+            os.replace(temporary_manifest, manifest_path)
         if manifest.get("universe_sha256") != _sha256(universe_path):
             raise UniverseDataError("existing universe hash mismatch")
         return manifest_path
