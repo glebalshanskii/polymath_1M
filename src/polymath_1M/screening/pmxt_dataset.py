@@ -25,7 +25,8 @@ class ScreeningDatasetError(RuntimeError):
     """The PMXT screening dataset cannot satisfy the frozen data contract."""
 
 
-BOOK_CONTRACT = "causal_best_hints_assume_10_usdc_at_execution_top"
+BOOK_CONTRACT = "causal_best_hints_assume_10_usdc_at_execution_top_v2"
+LEGACY_BOOK_CONTRACT = "causal_best_hints_assume_10_usdc_at_execution_top"
 
 
 def _sha256(path: Path) -> str:
@@ -75,6 +76,7 @@ def _valid_top_row(
     execution_down = snapshots[("execution", "Down")]
     if any(
         not 0 <= float(row["best_bid"]) <= float(row["best_ask"]) <= 1
+        or float(row["best_ask"]) <= 0
         for row in required
         if row is not None
     ):
@@ -185,6 +187,7 @@ def _build_hour(
 ) -> dict[str, Any]:
     output_path = output_dir / f"hour={hour}.parquet"
     metadata_path = output_dir / f"hour={hour}.json"
+    existing_rows: list[dict[str, Any]] | None = None
     if output_path.is_file() and metadata_path.is_file():
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         if (
@@ -194,6 +197,31 @@ def _build_hour(
             and metadata.get("market_count") == len(markets)
         ):
             return metadata
+        if (
+            metadata.get("data_contract_sha256") == config.data_contract_sha256
+            and metadata.get("book_contract") == LEGACY_BOOK_CONTRACT
+            and metadata.get("parquet_sha256") == _sha256(output_path)
+            and metadata.get("market_count") == len(markets)
+        ):
+            existing_rows = pq.read_table(output_path).to_pylist()
+            retry_ids = {
+                str(row["condition_id"])
+                for row in existing_rows
+                if row["invalid_reason"] == "invalid_causal_top"
+            }
+            if not retry_ids:
+                metadata["book_contract"] = BOOK_CONTRACT
+                temporary_metadata = metadata_path.with_suffix(".json.part")
+                temporary_metadata.write_text(
+                    json.dumps(metadata, ensure_ascii=False, sort_keys=True, indent=2)
+                    + "\n",
+                    encoding="utf-8",
+                )
+                os.replace(temporary_metadata, metadata_path)
+                return metadata
+            markets = [
+                market for market in markets if market["condition_id"] in retry_ids
+            ]
 
     error: Exception | None = None
     for attempt in range(3):
@@ -207,7 +235,7 @@ def _build_hour(
     else:
         raise ScreeningDatasetError(f"PMXT query failed for {hour}: {error}")
 
-    rows: list[dict[str, Any]] = []
+    refreshed_rows: list[dict[str, Any]] = []
     by_condition: dict[str, dict[tuple[str, str], dict[str, Any]]] = defaultdict(dict)
     for row in table.to_pylist():
         by_condition[str(row["condition_id"]).lower()][
@@ -215,7 +243,14 @@ def _build_hour(
         ] = row
     for market in markets:
         condition_id = market["condition_id"]
-        rows.append(_valid_top_row(market, by_condition.get(condition_id, {})))
+        refreshed_rows.append(
+            _valid_top_row(market, by_condition.get(condition_id, {}))
+        )
+    if existing_rows is None:
+        rows = refreshed_rows
+    else:
+        refreshed = {str(row["condition_id"]): row for row in refreshed_rows}
+        rows = [refreshed.get(str(row["condition_id"]), row) for row in existing_rows]
 
     temporary = output_path.with_suffix(".parquet.part")
     pq.write_table(pa.Table.from_pylist(rows), temporary, compression="zstd")
