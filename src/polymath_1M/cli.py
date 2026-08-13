@@ -13,6 +13,7 @@ from .historical.overlap import run_pmxt_overlap_smoke
 from .historical.polymarket_chainlink import (
     download_polymarket_chainlink_context,
 )
+from .historical.trent import download_trent_steps
 from .screening.calibration import run_stage4b_calibration
 from .screening.capital_chart import run_stage4d_capital_chart
 from .screening.holdout import run_stage4b_test
@@ -339,6 +340,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/regime_models",
         help="ignored directory for per-model diagnostics and proposal",
     )
+    trent_download = subparsers.add_parser(
+        "trent-steps-download",
+        help="download and hash the pinned early BTC 5m Trent steps archive",
+    )
+    trent_download.add_argument(
+        "--config",
+        default="cfg/datasets/trent_btc5m_steps_stage4e.json",
+        help="path to the pinned Trent dataset config",
+    )
+    trent_download.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory for third-party historical files",
+    )
     return parser
 
 
@@ -432,3 +447,5 @@ def main(argv: Sequence[str] | None = None) -> None:
                 output_root=args.output_root,
             )
         )
+    elif args.command == "trent-steps-download":
+        print(download_trent_steps(args.config, args.data_root))
