@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "dataset_config": "cfg/datasets/trent_btc5m_steps_stage4e.json",
+  "gamma_base_url": "https://gamma-api.polymarket.com",
+  "gamma_series_id": "10684",
+  "period_start": "2026-02-21T15:55:00Z",
+  "period_end_exclusive": "2026-03-24T20:10:00Z",
+  "page_limit": 100,
+  "expected_fee_rate": 0.25,
+  "expected_fee_exponent": 2.0
+}

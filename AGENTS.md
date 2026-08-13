@@ -8,7 +8,7 @@
 
 ## Задача проекта
 
-Воспроизвести результаты статьи docs/papers/The Math That Made $1M+ for quant Traders in 30 Days _ by Ayrat Murtazin _ DataDrivenInvestor.pdf и затем построить на её основе торговые стратегии, провести backtests и найти условия и параметры стратегий, при которых они доходна.
+Воспроизвести результаты статьи docs/papers/The Math That Made \$1M+ for quant Traders in 30 Days _ by Ayrat Murtazin _ DataDrivenInvestor.pdf и затем построить на её основе торговые стратегии, провести backtests и найти условия и параметры стратегий, при которых они доходны.
 В итоге запустить эти стратегии на live-trading.
 
 ## Source of truth
@@ -93,6 +93,8 @@ Agreed behavior, scope, research assumptions и experimental protocols фикс�
 - Формулы оформляй в LaTeX: inline — `$...$`, display — блоком `$$` с пустыми строками вокруг.
 - Разделяй Method, Experimental Setup, Results, Ablations, Limitations и Threats to Validity.
 - Каждый claim связывай с таблицей, графиком, логом или experiment id.
+- Новые графики по умолчанию строй на Plotly и сохраняй как self-contained
+  interactive HTML; другой формат используй только при явной необходимости.
 - Не скрывай failed runs, tuning budget и deviations from paper.
 - Для paper drafts сохраняй provenance: какие experiments подтверждают каждый claim.
 

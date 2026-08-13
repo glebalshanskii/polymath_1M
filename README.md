@@ -89,6 +89,14 @@ development return on modeled entry turnover — 7.54%. Holdout не читал�
 поэтому это candidate, а не подтверждённая стратегия. Детали — в
 [Stage 4d report](docs/reports/murtazin_uniform_plateau_stage4d.md).
 
+Этап 4e последовательно проверил M0—M6 на расширенной chronology почти в три
+месяца. Causal Chainlink M6 улучшила primary development PnL/risk, но на раннем
+Trent interval дала `-129.61 USDC`, а на one-shot Kacho/Gamma holdout —
+49 fills, `-33.68 USDC`, PF 0.695 и отрицательный 2¢ stress. Провалены все
+четыре frozen gates; M6 отклонена, M0 также не принят из-за отрицательного
+early result. В проекте пока нет стратегии для paper/live. Детали — в
+[Stage 4e report](docs/reports/murtazin_regime_models_stage4e.md).
+
 Запуск аудита:
 
 ```bash
@@ -187,22 +195,41 @@ scenario percentages. Проект больше не выводит bankroll и�
 лимита 0.5%; решение зафиксировано в
 [ADR-0010](docs/adr/0010-live-capital-limits-need-data.md).
 
-График по реальному UTC-времени с Gamma outcomes, выбранной side, signal
-probability/ask, edge, persistence, gates, PnL и position size требует
-visualization-only BTCUSDT context:
+Интерактивный Plotly-график по реальному UTC-времени с Gamma outcomes,
+выбранной side, signal probability/ask, edge, persistence, gates, PnL и
+position size требует двух visualization-only price contexts:
 
 ```bash
 uv run polymath_1M binance-context-download \
   --config cfg/datasets/binance_btcusdt_1m_202604_202605.json \
   --data-root data/historical
+uv run polymath_1M polymarket-chainlink-context-download \
+  --config cfg/datasets/polymarket_chainlink_btcusd_1m_stage4d.json \
+  --data-root data/historical
 uv run polymath_1M stage4d-time-chart \
   --config cfg/experiments/stage4d_uniform_plateau.json \
   --proposal <stage4d-run>/proposal.json \
   --binance-config cfg/datasets/binance_btcusdt_1m_202604_202605.json \
+  --chainlink-config cfg/datasets/polymarket_chainlink_btcusd_1m_stage4d.json \
   --data-root data/historical \
   --starting-capital 2000
 ```
 
-BTCUSDT — только визуальный proxy, не Chainlink resolution price и не input
-стратегии. Config содержит SHA-256 и только данные до Stage 4d holdout; детали
-в [ADR-0011](docs/adr/0011-btc-price-is-visual-context.md).
+Первые два графика идут друг под другом: Polymarket Chainlink-family BTC/USD,
+затем Binance BTCUSDT. Оба ряда — только visual context, не input стратегии.
+Основной artifact — self-contained Plotly HTML. Contracts содержат SHA-256 и
+только данные до Stage 4d holdout; детали в
+[ADR-0012](docs/adr/0012-plotly-dual-price-visualizations.md).
+
+Stage 4e development и расширенная source-specific проверка:
+
+```bash
+uv run polymath_1M stage4e-develop
+uv run polymath_1M trent-steps-download
+uv run polymath_1M trent-gamma-download
+uv run polymath_1M stage4e-early-robustness
+```
+
+Каждая модель сохраняет exact decisions, fold metrics и self-contained Plotly
+PnL diagnostics в `outputs/regime_models/`. One-shot `stage4e-holdout` уже
+выполнен и намеренно отказывается перезаписать canonical artifact.

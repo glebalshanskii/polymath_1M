@@ -10,12 +10,19 @@ from .collector.runner import run_collector
 from .historical.binance import download_binance_context
 from .historical.download import download_kacho_dataset
 from .historical.overlap import run_pmxt_overlap_smoke
+from .historical.polymarket_chainlink import (
+    download_polymarket_chainlink_context,
+)
+from .historical.trent import download_trent_gamma_outcomes, download_trent_steps
 from .screening.calibration import run_stage4b_calibration
 from .screening.capital_chart import run_stage4d_capital_chart
 from .screening.holdout import run_stage4b_test
 from .screening.openmarket import run_openmarket_sanity
 from .screening.plateau import run_stage4d_calibration
 from .screening.pmxt_dataset import build_stage4_pmxt_dataset
+from .screening.regime_holdout import run_stage4e_holdout
+from .screening.regime_models import run_stage4e_development
+from .screening.regime_robustness import run_stage4e_early_robustness
 from .screening.run import run_stage4_screening
 from .screening.time_chart import run_stage4d_time_chart
 from .screening.universe import build_stage4_universe
@@ -262,6 +269,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="data/historical",
         help="ignored directory for third-party historical files",
     )
+    chainlink_context = subparsers.add_parser(
+        "polymarket-chainlink-context-download",
+        help="archive minute Polymarket Chainlink frontend history before holdout",
+    )
+    chainlink_context.add_argument(
+        "--config",
+        default="cfg/datasets/polymarket_chainlink_btcusd_1m_stage4d.json",
+        help="development-only Polymarket Chainlink context config",
+    )
+    chainlink_context.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory for raw frontend responses and manifest",
+    )
     time_chart = subparsers.add_parser(
         "stage4d-time-chart",
         help="render Stage 4d BTC outcomes, signals and PnL against UTC time",
@@ -282,6 +303,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="pinned Binance BTCUSDT visualization-context config",
     )
     time_chart.add_argument(
+        "--chainlink-config",
+        default="cfg/datasets/polymarket_chainlink_btcusd_1m_stage4d.json",
+        help="Polymarket Chainlink frontend history context config",
+    )
+    time_chart.add_argument(
         "--data-root",
         default="data/historical",
         help="ignored directory containing the pinned Binance files",
@@ -296,6 +322,91 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-root",
         default="outputs/charts",
         help="ignored directory for chart and exact signal ledgers",
+    )
+    regime_models = subparsers.add_parser(
+        "stage4e-develop",
+        help="run the frozen sequential BTC 5m regime-model comparison",
+    )
+    regime_models.add_argument(
+        "--config",
+        default="cfg/experiments/stage4e_regime_models.json",
+        help="path to the frozen Stage 4e model-sequence config",
+    )
+    regime_models.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory containing pinned Kacho and Chainlink inputs",
+    )
+    regime_models.add_argument(
+        "--output-root",
+        default="outputs/regime_models",
+        help="ignored directory for per-model diagnostics and proposal",
+    )
+    trent_download = subparsers.add_parser(
+        "trent-steps-download",
+        help="download and hash the pinned early BTC 5m Trent steps archive",
+    )
+    trent_download.add_argument(
+        "--config",
+        default="cfg/datasets/trent_btc5m_steps_stage4e.json",
+        help="path to the pinned Trent dataset config",
+    )
+    trent_download.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory for third-party historical files",
+    )
+    trent_gamma = subparsers.add_parser(
+        "trent-gamma-download",
+        help="archive authoritative Gamma outcomes for the early Trent markets",
+    )
+    trent_gamma.add_argument(
+        "--config",
+        default="cfg/datasets/trent_btc5m_gamma_stage4e.json",
+        help="path to the pinned early Gamma outcome config",
+    )
+    trent_gamma.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory for the Gamma outcome archive",
+    )
+    early_robustness = subparsers.add_parser(
+        "stage4e-early-robustness",
+        help="compare Stage 4e baseline/candidate on the early Trent source",
+    )
+    early_robustness.add_argument(
+        "--config",
+        default="cfg/experiments/stage4e_trent_robustness.json",
+        help="path to the frozen source-specific robustness config",
+    )
+    early_robustness.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory containing pinned Trent and Chainlink inputs",
+    )
+    early_robustness.add_argument(
+        "--output-root",
+        default="outputs/regime_models",
+        help="ignored directory for source-specific robustness artifacts",
+    )
+    regime_holdout = subparsers.add_parser(
+        "stage4e-holdout",
+        help="run the selected Stage 4e model once on the frozen holdout",
+    )
+    regime_holdout.add_argument(
+        "--config",
+        default="cfg/experiments/stage4e_selected.json",
+        help="path to the selected Stage 4e model and holdout contract",
+    )
+    regime_holdout.add_argument(
+        "--data-root",
+        default="data/historical",
+        help="ignored directory containing pinned Kacho and Chainlink inputs",
+    )
+    regime_holdout.add_argument(
+        "--output-root",
+        default="outputs/holdout",
+        help="ignored directory for the one-shot holdout artifacts",
     )
     return parser
 
@@ -368,13 +479,44 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
     elif args.command == "binance-context-download":
         print(download_binance_context(args.config, args.data_root))
+    elif args.command == "polymarket-chainlink-context-download":
+        print(download_polymarket_chainlink_context(args.config, args.data_root))
     elif args.command == "stage4d-time-chart":
         print(
             run_stage4d_time_chart(
                 args.config,
                 args.proposal,
                 args.binance_config,
+                args.chainlink_config,
                 starting_capital=args.starting_capital,
+                data_root=args.data_root,
+                output_root=args.output_root,
+            )
+        )
+    elif args.command == "stage4e-develop":
+        print(
+            run_stage4e_development(
+                args.config,
+                data_root=args.data_root,
+                output_root=args.output_root,
+            )
+        )
+    elif args.command == "trent-steps-download":
+        print(download_trent_steps(args.config, args.data_root))
+    elif args.command == "trent-gamma-download":
+        print(download_trent_gamma_outcomes(args.config, args.data_root))
+    elif args.command == "stage4e-early-robustness":
+        print(
+            run_stage4e_early_robustness(
+                args.config,
+                data_root=args.data_root,
+                output_root=args.output_root,
+            )
+        )
+    elif args.command == "stage4e-holdout":
+        print(
+            run_stage4e_holdout(
+                args.config,
                 data_root=args.data_root,
                 output_root=args.output_root,
             )

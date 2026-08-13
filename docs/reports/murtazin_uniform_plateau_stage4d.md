@@ -222,6 +222,51 @@ Run выполнен из clean commit
 Загружено 23,040 минут context только до holdout boundary;
 `holdout_rows_loaded = 0`, `holdout_opened = false`.
 
+### Plotly dual-price replacement
+
+По результатам визуальной проверки chart переведён на Plotly. Верхние панели
+теперь идут одна под другой на общей UTC-шкале:
+
+1. Polymarket Chainlink-family `BTC/USD` minute history;
+2. Binance Spot `BTCUSDT` 1m close.
+
+Ни один ряд не входит в модель. Polymarket ряд получен из frontend proxy
+`/api/crypto/price-history`, а не из raw RTDS либо подписанных Chainlink
+reports. Frozen downloader сохранил 384 raw responses и manifest; loader
+проверил 23,040 последовательных минут с последней точкой
+`2026-05-13 23:59 UTC`. На decision grid оба ряда matched только по exact
+minute. Разница `Chainlink - Binance` на 4,608 decisions имела mean
+`-0.26 USD`, диапазон `[-539.07, +370.18] USD`; это диагностическое сравнение,
+не trading result.
+
+Polymarket history config SHA-256:
+`741f3bbce08cbfba64f79109ecbd7600e6ea4726888de7b50812c5dacaeae09a`;
+raw manifest SHA-256:
+`46f00c9b426713374c2537b55878a1426f74f4a58d041f223f963961c3b25df9`.
+
+Ниже price panels сохранены Gamma outcomes/model side, payout/ask,
+edge/persistence, gate funnel, PnL/drawdown и position size. HTML полностью
+автономен: Plotly встроен локально; доступны hover, zoom, pan и экспорт PNG.
+
+Canonical artifacts:
+`outputs/charts/20260813T120029Z_stage4d_stage4c_btc_5m_plotly_dual_price/`.
+
+| Artifact | SHA-256 |
+|---|---|
+| `time_pnl_dual_price_outcomes_signals.html` | `ccd232f56c07fc7f32d64af8a4d48e7ee57e887507d96436abbb73f881dafd98` |
+| `signals.csv` | `76aa7dd9e221bb7d48f592208130460996ef9ee705a62c7e737e1530cf33f7ac` |
+| `polymarket_chainlink_btcusd_context.csv` | `72500aab2fcca1b1640493514e658237d28d464ff7c7964008cebb1d409504ca` |
+| `binance_btcusdt_context.csv` | `3a79a9acdbac376c333e35a128caf9c8c0c3766b8666c4bd215cecc4da0f7c67` |
+| `summary.json` | `311ea6e453c2669f9cbcb24666bbc911e7e3400b765bcccecdb70daa8b3c72a5` |
+| `run_record.json` | `de59c5e84bf9087f900ba4fea1c077f0a9b5cb0a4fe431f7ed7c6dca39d9ceae` |
+
+Run выполнен из clean commit
+`f436122bf17913f011c6ea94ad7d4f671003fe5c`: 235 fills,
+`+168.60432879223615 USDC`, max drawdown `102.32681249532243 USDC`.
+`holdout_rows_loaded = 0`, `holdout_opened = false`. Source contract и
+ограничения описаны в
+[ADR-0012](../adr/0012-plotly-dual-price-visualizations.md).
+
 ## Артефакты и воспроизводимость
 
 Canonical artifacts:

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "dataset_id": "trentmkelly/polymarket_crypto_derivatives",
+  "revision": "6be20463ce33795178c121e7bd15ed428904b5bd",
+  "license": "CC-BY-SA-4.0",
+  "base_url": "https://huggingface.co/datasets/trentmkelly/polymarket_crypto_derivatives/resolve",
+  "file_glob": "btc5m_*/steps.parquet",
+  "expected_files": 8803,
+  "period_start": "2026-02-21T15:55:00Z",
+  "period_end_exclusive": "2026-03-24T20:10:00Z",
+  "max_workers": 16
+}

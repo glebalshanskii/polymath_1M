@@ -1,7 +1,7 @@
 # ADR-0011: цена BTC на Stage 4d chart — только визуальный контекст
 
 Дата: 2026-08-13
-Статус: accepted
+Статус: superseded (chart/source format; см. ADR-0012)
 
 ## Контекст
 
@@ -65,3 +65,8 @@ Frozen 1 cent/share extra-cost haircut уменьшает modeled PnL, но не
   нового causal data contract и повторной development validation.
 - Для production-resolution diagnostics нужен отдельный сохранённый Chainlink
   series; Binance proxy для этой цели недостаточен.
+
+Новый dual-price Plotly contract и сохранённый Polymarket Chainlink-family
+minute history приняты в [ADR-0012](0012-plotly-dual-price-visualizations.md).
+Ограничение этого ADR — не использовать визуальный price context как feature
+текущей стратегии — остаётся в силе.

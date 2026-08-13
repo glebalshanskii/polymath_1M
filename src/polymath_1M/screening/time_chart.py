@@ -9,15 +9,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import matplotlib
+import plotly
+import plotly.graph_objects as go
 import torch
-from matplotlib.colors import ListedColormap
-
-matplotlib.use("Agg")
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
+from plotly.subplots import make_subplots
 
 from polymath_1M.historical.binance import BinanceKlines, load_binance_klines
+from polymath_1M.historical.polymarket_chainlink import (
+    PolymarketChainlinkSeries,
+    load_polymarket_chainlink_series,
+)
 from polymath_1M.strategy.model import STATUS_NAMES, fit_lookup_model
 from polymath_1M.strategy.parameters import StrategyConfig, load_strategy_config
 
@@ -230,6 +231,18 @@ def _match_decision_opens(
     return klines.open[safe]
 
 
+def _match_chainlink_values(
+    decision_s: torch.Tensor, series: PolymarketChainlinkSeries
+) -> torch.Tensor:
+    indices = torch.searchsorted(series.timestamp_s, decision_s)
+    safe = torch.clamp(indices, max=len(series) - 1)
+    if bool((series.timestamp_s[safe] != decision_s).any().item()):
+        raise TimeChartError(
+            "Polymarket Chainlink context has no exact decision timestamp"
+        )
+    return series.value[safe]
+
+
 def _utc_datetimes(values: torch.Tensor) -> list[datetime]:
     return [datetime.fromtimestamp(int(value), tz=UTC) for value in values.tolist()]
 
@@ -248,7 +261,8 @@ def _trade_ledger(
 def _write_signals_csv(
     path: Path,
     timeline: SignalTimeline,
-    btc_at_decision: torch.Tensor,
+    chainlink_at_decision: torch.Tensor,
+    binance_at_decision: torch.Tensor,
     starting_capital: float,
 ) -> None:
     filled_indices, ledger = _trade_ledger(timeline, starting_capital)
@@ -262,6 +276,7 @@ def _write_signals_csv(
         "decision_utc",
         "condition_id",
         "fold_id",
+        "polymarket_chainlink_btcusd_at_decision",
         "btc_usdt_proxy_open_at_decision",
         "outcome",
         "outcome_up",
@@ -333,8 +348,11 @@ def _write_signals_csv(
                     ).isoformat(),
                     "condition_id": timeline.condition_ids[index],
                     "fold_id": timeline.fold_ids[index],
+                    "polymarket_chainlink_btcusd_at_decision": float(
+                        chainlink_at_decision[index].item()
+                    ),
                     "btc_usdt_proxy_open_at_decision": float(
-                        btc_at_decision[index].item()
+                        binance_at_decision[index].item()
                     ),
                     "outcome": (
                         "UP"
@@ -376,7 +394,7 @@ def _write_signals_csv(
             )
 
 
-def _write_btc_csv(path: Path, klines: BinanceKlines) -> None:
+def _write_binance_csv(path: Path, klines: BinanceKlines) -> None:
     with path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.writer(stream)
         writer.writerow(("open_time_utc", "open", "high", "low", "close"))
@@ -396,35 +414,25 @@ def _write_btc_csv(path: Path, klines: BinanceKlines) -> None:
             )
 
 
-def _add_fold_boundaries(
-    axes: list[Any], config: PlateauConfig, minimum: datetime, maximum: datetime
-) -> None:
-    for fold in config.folds:
-        start = fold.validation_start
-        end = fold.validation_end_exclusive
-        if start < maximum and end > minimum:
-            label_time = max(start, minimum)
-            for axis in axes:
-                if start > minimum:
-                    axis.axvline(start, color="#575757", linestyle="--", alpha=0.42)
-            axes[0].text(
-                label_time,
-                0.97,
-                fold.fold_id,
-                transform=axes[0].get_xaxis_transform(),
-                va="top",
-                ha="left",
-                fontsize=8,
-                color="#444444",
+def _write_chainlink_csv(path: Path, series: PolymarketChainlinkSeries) -> None:
+    with path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(("timestamp_utc", "btc_usd"))
+        for timestamp, value in zip(
+            series.timestamp_s.tolist(), series.value.tolist(), strict=True
+        ):
+            writer.writerow(
+                (datetime.fromtimestamp(int(timestamp), tz=UTC).isoformat(), value)
             )
 
 
 def _render_chart(
-    png_path: Path,
-    svg_path: Path,
+    html_path: Path,
     timeline: SignalTimeline,
     klines: BinanceKlines,
-    btc_at_decision: torch.Tensor,
+    chainlink: PolymarketChainlinkSeries,
+    chainlink_at_decision: torch.Tensor,
+    binance_at_decision: torch.Tensor,
     selected: dict[str, Any],
     config: PlateauConfig,
     starting_capital: float,
@@ -432,302 +440,459 @@ def _render_chart(
     filled_indices, ledger = _trade_ledger(timeline, starting_capital)
     decision_dates = _utc_datetimes(timeline.decision_s)
     trade_dates = [decision_dates[index] for index in filled_indices.tolist()]
-    btc_dates = _utc_datetimes(klines.open_time_s)
+    chainlink_dates = _utc_datetimes(chainlink.timestamp_s)
+    binance_dates = _utc_datetimes(klines.open_time_s)
     selected_sides = timeline.side[filled_indices]
     selected_pnl = timeline.net_pnl[filled_indices]
-    selected_btc = btc_at_decision[filled_indices]
     position = ledger.position_outlay
-    marker_sizes = 25 + 65 * position / position.max()
+    marker_sizes = 7 + 10 * position / position.max()
 
-    matplotlib.rcParams["svg.hashsalt"] = "polymath-stage4d-time-signal-chart"
-    plt.style.use("seaborn-v0_8-whitegrid")
-    figure, axes_array = plt.subplots(
-        7,
-        1,
-        figsize=(20, 23),
-        sharex=True,
-        gridspec_kw={"height_ratios": [1.45, 0.42, 1.05, 1.05, 0.75, 1.15, 1.05]},
+    subplot_titles = (
+        "Polymarket Chainlink-family BTC/USD history — ряд интерфейса Polymarket",
+        "Binance BTCUSDT — независимый spot-контекст для сравнения",
+        "Фактический Gamma outcome и выбранная моделью сторона",
+        "Выбор стороны: model expected payout и текущий Polymarket token ask",
+        "Фильтры сигнала: net edge и Markov persistence",
+        "Воронка решения: blue = gate passed; FINAL FILL = все условия",
+        "PnL и drawdown по времени решения (PnL известен после settlement)",
+        "Размер позиции: fixed target 10 USDC, фактический outlay по liquidity",
     )
-    axes = list(axes_array)
-    figure.suptitle(
-        "Stage 4d BTC 5m — development replay по реальному UTC-времени",
-        fontsize=18,
-        fontweight="bold",
+    figure = make_subplots(
+        rows=8,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.025,
+        row_heights=[0.14, 0.14, 0.055, 0.12, 0.12, 0.105, 0.15, 0.15],
+        specs=[
+            [{}],
+            [{}],
+            [{}],
+            [{}],
+            [{"secondary_y": True}],
+            [{}],
+            [{"secondary_y": True}],
+            [{"secondary_y": True}],
+        ],
+        subplot_titles=subplot_titles,
     )
-    figure.text(
-        0.5,
-        0.967,
-        f"235 сделок | PnL {float(ledger.cumulative_pnl[-1]):+.2f} USDC | "
-        f"сценарный капитал {starting_capital:,.0f} USDC",
-        ha="center",
-        fontsize=11,
+    figure.add_trace(
+        go.Scattergl(
+            x=chainlink_dates,
+            y=chainlink.value.tolist(),
+            mode="lines",
+            line={"color": "#1261a0", "width": 1.2},
+            name="Polymarket Chainlink BTC/USD 1m",
+            hovertemplate="%{x|%Y-%m-%d %H:%M:%S UTC}<br>BTC/USD %{y:,.2f}<extra></extra>",
+        ),
+        row=1,
+        col=1,
     )
-
-    axes[0].plot(
-        btc_dates,
-        klines.close.tolist(),
-        color="#304b70",
-        linewidth=0.8,
-        label="Binance BTCUSDT 1m close (visual proxy)",
+    figure.add_trace(
+        go.Scattergl(
+            x=binance_dates,
+            y=klines.close.tolist(),
+            mode="lines",
+            line={"color": "#805e3b", "width": 1.0},
+            name="Binance BTCUSDT 1m close",
+            hovertemplate="%{x|%Y-%m-%d %H:%M:%S UTC}<br>BTCUSDT %{y:,.2f}<extra></extra>",
+        ),
+        row=2,
+        col=1,
     )
     combinations = (
-        (0, True, "^", "#16875b", "UP trade, profit"),
-        (0, False, "^", "#d64b4b", "UP trade, loss"),
-        (1, True, "v", "#16875b", "DOWN trade, profit"),
-        (1, False, "v", "#d64b4b", "DOWN trade, loss"),
+        (0, True, "triangle-up", "#16875b", "UP trade, profit"),
+        (0, False, "triangle-up", "#d64b4b", "UP trade, loss"),
+        (1, True, "triangle-down", "#16875b", "DOWN trade, profit"),
+        (1, False, "triangle-down", "#d64b4b", "DOWN trade, loss"),
     )
-    for side, positive, marker, color, label in combinations:
+    trade_rows = filled_indices.tolist()
+    for side, positive, symbol, color, label in combinations:
         mask = (selected_sides == side) & ((selected_pnl >= 0) == positive)
-        indices = torch.nonzero(mask, as_tuple=False).flatten().tolist()
-        axes[0].scatter(
-            [trade_dates[index] for index in indices],
-            selected_btc[mask].tolist(),
-            s=marker_sizes[mask].tolist(),
-            marker=marker,
-            color=color,
-            edgecolor="white",
-            linewidth=0.35,
-            alpha=0.88,
-            label=label,
-            zorder=3,
-        )
-    axes[0].set_ylabel("BTCUSDT")
-    axes[0].set_title(
-        "Цена BTC и сделки — BTCUSDT только визуальный контекст, НЕ Chainlink и НЕ вход модели"
-    )
-    axes[0].legend(loc="upper left", ncol=3, fontsize=8)
+        subset = torch.nonzero(mask, as_tuple=False).flatten().tolist()
+        market_rows = [trade_rows[index] for index in subset]
+        customdata = [
+            [
+                timeline.condition_ids[market_index],
+                timeline.fold_ids[market_index],
+                "UP" if side == 0 else "DOWN",
+                float(timeline.net_pnl[market_index].item()),
+                float(ledger.position_outlay[trade_index].item()),
+            ]
+            for trade_index, market_index in zip(subset, market_rows, strict=True)
+        ]
+        for chart_row, values, show_legend in (
+            (1, chainlink_at_decision[filled_indices][mask], True),
+            (2, binance_at_decision[filled_indices][mask], False),
+        ):
+            figure.add_trace(
+                go.Scattergl(
+                    x=[trade_dates[index] for index in subset],
+                    y=values.tolist(),
+                    mode="markers",
+                    marker={
+                        "size": marker_sizes[mask].tolist(),
+                        "symbol": symbol,
+                        "color": color,
+                        "line": {"color": "white", "width": 0.5},
+                        "opacity": 0.88,
+                    },
+                    customdata=customdata,
+                    name=label,
+                    legendgroup=label,
+                    showlegend=show_legend,
+                    hovertemplate=(
+                        "%{x|%Y-%m-%d %H:%M UTC}<br>price %{y:,.2f}"
+                        "<br>%{customdata[2]} | PnL %{customdata[3]:+.3f} USDC"
+                        "<br>outlay %{customdata[4]:.3f} USDC"
+                        "<br>%{customdata[1]}<br>%{customdata[0]}<extra></extra>"
+                    ),
+                ),
+                row=chart_row,
+                col=1,
+            )
 
-    date_numbers = mdates.date2num(decision_dates)
-    five_minutes = 5 / (24 * 60)
     outcome_and_side = torch.stack(
         (timeline.outcome_up, (timeline.side == 0).to(dtype=torch.float64)), dim=0
     )
-    axes[1].imshow(
-        outcome_and_side.tolist(),
-        aspect="auto",
-        interpolation="nearest",
-        extent=(date_numbers[0], date_numbers[-1] + five_minutes, 0, 2),
-        cmap=ListedColormap(["#d85858", "#31a36d"]),
-        vmin=0,
-        vmax=1,
-        origin="upper",
+    figure.add_trace(
+        go.Heatmap(
+            x=decision_dates,
+            y=["Gamma outcome", "model side"],
+            z=outcome_and_side.tolist(),
+            zmin=0,
+            zmax=1,
+            colorscale=[
+                [0, "#d85858"],
+                [0.499, "#d85858"],
+                [0.5, "#31a36d"],
+                [1, "#31a36d"],
+            ],
+            showscale=False,
+            hovertemplate="%{x|%Y-%m-%d %H:%M UTC}<br>%{y}: %{z}<extra>0=DOWN, 1=UP</extra>",
+        ),
+        row=3,
+        col=1,
     )
-    axes[1].set_yticks([1.5, 0.5], ["Gamma outcome", "model side"])
-    axes[1].set_title(
-        "Фактический исход и выбранная моделью сторона: DOWN (red) / UP (green)"
+    figure.add_trace(
+        go.Scattergl(
+            x=decision_dates,
+            y=timeline.probability.tolist(),
+            mode="lines",
+            line={"color": "#4464ad", "width": 1.0},
+            name="model expected payout",
+            hovertemplate="%{x|%Y-%m-%d %H:%M UTC}<br>payout %{y:.4f}<extra></extra>",
+        ),
+        row=4,
+        col=1,
     )
-    axes[1].grid(False)
-
-    axes[2].plot(
-        decision_dates,
-        timeline.probability.tolist(),
-        color="#4464ad",
-        linewidth=0.65,
-        alpha=0.85,
-        label="model expected payout, chosen side",
+    figure.add_trace(
+        go.Scattergl(
+            x=decision_dates,
+            y=timeline.signal_ask.tolist(),
+            mode="lines",
+            line={"color": "#dc8a19", "width": 0.8},
+            name="chosen-side ask",
+            hovertemplate="%{x|%Y-%m-%d %H:%M UTC}<br>ask %{y:.4f}<extra></extra>",
+        ),
+        row=4,
+        col=1,
     )
-    axes[2].plot(
-        decision_dates,
-        timeline.signal_ask.tolist(),
-        color="#dc8a19",
-        linewidth=0.55,
-        alpha=0.72,
-        label="ask, chosen side",
+    figure.add_trace(
+        go.Scattergl(
+            x=trade_dates,
+            y=timeline.probability[filled_indices].tolist(),
+            mode="markers",
+            marker={"size": 5, "color": "#16875b"},
+            name="filled signal",
+            hovertemplate="%{x|%Y-%m-%d %H:%M UTC}<br>payout %{y:.4f}<extra></extra>",
+        ),
+        row=4,
+        col=1,
     )
-    axes[2].scatter(
-        trade_dates,
-        timeline.probability[filled_indices].tolist(),
-        s=10,
-        color="#16875b",
-        label="filled signal",
-        zorder=3,
+    figure.add_hrect(
+        y0=float(selected["minimum_ask"]),
+        y1=float(selected["maximum_ask"]),
+        fillcolor="#dc8a19",
+        opacity=0.08,
+        line_width=0,
+        row=4,
+        col=1,
     )
-    axes[2].axhspan(
-        float(selected["minimum_ask"]),
-        float(selected["maximum_ask"]),
-        color="#dc8a19",
-        alpha=0.08,
+    figure.add_trace(
+        go.Scattergl(
+            x=decision_dates,
+            y=timeline.net_edge.tolist(),
+            mode="lines",
+            line={"color": "#6d4aa2", "width": 1.0},
+            name="net edge",
+            hovertemplate="%{x|%Y-%m-%d %H:%M UTC}<br>edge %{y:+.4f}<extra></extra>",
+        ),
+        row=5,
+        col=1,
+        secondary_y=False,
     )
-    axes[2].set_ylim(-0.02, 1.02)
-    axes[2].set_ylabel("probability / price")
-    axes[2].set_title(
-        "Сторона выбирается по max net edge: прогноз payout и текущий ask"
+    figure.add_trace(
+        go.Scatter(
+            x=[decision_dates[0], decision_dates[-1]],
+            y=[float(selected["minimum_net_edge"])] * 2,
+            mode="lines",
+            line={"color": "#6d4aa2", "width": 1, "dash": "dash"},
+            name=f"edge ≥ {float(selected['minimum_net_edge']):.2f}",
+            hoverinfo="skip",
+        ),
+        row=5,
+        col=1,
+        secondary_y=False,
     )
-    axes[2].legend(loc="upper left", ncol=3, fontsize=8)
-
-    axes[3].plot(
-        decision_dates,
-        timeline.net_edge.tolist(),
-        color="#6d4aa2",
-        linewidth=0.65,
-        label="net edge",
+    figure.add_trace(
+        go.Scattergl(
+            x=decision_dates,
+            y=timeline.persistence.tolist(),
+            mode="lines",
+            line={"color": "#267a73", "width": 0.8},
+            name="persistence",
+            hovertemplate="%{x|%Y-%m-%d %H:%M UTC}<br>persistence %{y:.4f}<extra></extra>",
+        ),
+        row=5,
+        col=1,
+        secondary_y=True,
     )
-    axes[3].axhline(
-        float(selected["minimum_net_edge"]),
-        color="#6d4aa2",
-        linestyle="--",
-        linewidth=1.0,
-        label=f"edge >= {float(selected['minimum_net_edge']):.2f}",
+    figure.add_trace(
+        go.Scatter(
+            x=[decision_dates[0], decision_dates[-1]],
+            y=[float(selected["minimum_persistence"])] * 2,
+            mode="lines",
+            line={"color": "#267a73", "width": 1, "dash": "dot"},
+            name=f"persistence ≥ {float(selected['minimum_persistence']):.2f}",
+            hoverinfo="skip",
+        ),
+        row=5,
+        col=1,
+        secondary_y=True,
     )
-    axes[3].scatter(
-        trade_dates,
-        timeline.net_edge[filled_indices].tolist(),
-        s=9,
-        color="#16875b",
-        zorder=3,
+    figure.add_trace(
+        go.Heatmap(
+            x=decision_dates,
+            y=list(GATE_NAMES),
+            z=timeline.gates.T.to(dtype=torch.int64).tolist(),
+            zmin=0,
+            zmax=1,
+            colorscale=[
+                [0, "#eadfda"],
+                [0.499, "#eadfda"],
+                [0.5, "#2a78a5"],
+                [1, "#2a78a5"],
+            ],
+            showscale=False,
+            hovertemplate="%{x|%Y-%m-%d %H:%M UTC}<br>%{y}: %{z}<extra>1=passed</extra>",
+        ),
+        row=6,
+        col=1,
     )
-    axes[3].set_ylabel("net edge")
-    persistence_axis = axes[3].twinx()
-    persistence_axis.plot(
-        decision_dates,
-        timeline.persistence.tolist(),
-        color="#267a73",
-        linewidth=0.55,
-        alpha=0.72,
-        label="persistence",
+    figure.add_trace(
+        go.Scatter(
+            x=trade_dates,
+            y=ledger.cumulative_pnl.tolist(),
+            mode="lines",
+            fill="tozeroy",
+            fillcolor="rgba(78,155,209,0.18)",
+            line={"color": "#1261a0", "width": 2},
+            name="cumulative modeled PnL",
+            hovertemplate="%{x|%Y-%m-%d %H:%M UTC}<br>PnL %{y:+.3f} USDC<extra></extra>",
+        ),
+        row=7,
+        col=1,
+        secondary_y=False,
     )
-    persistence_axis.axhline(
-        float(selected["minimum_persistence"]),
-        color="#267a73",
-        linestyle=":",
-        linewidth=1.0,
-        label=f"persistence >= {float(selected['minimum_persistence']):.2f}",
+    figure.add_trace(
+        go.Scatter(
+            x=trade_dates,
+            y=(-ledger.drawdown).tolist(),
+            mode="lines",
+            line={"color": "#c83e4d", "width": 1.3},
+            name="drawdown",
+            hovertemplate="%{x|%Y-%m-%d %H:%M UTC}<br>drawdown %{y:.3f} USDC<extra></extra>",
+        ),
+        row=7,
+        col=1,
+        secondary_y=True,
     )
-    persistence_axis.set_ylabel("persistence", color="#267a73")
-    axes[3].set_title("Фильтры качества сигнала: net edge и Markov persistence")
-    handles, labels = axes[3].get_legend_handles_labels()
-    other_handles, other_labels = persistence_axis.get_legend_handles_labels()
-    axes[3].legend(
-        handles + other_handles,
-        labels + other_labels,
-        loc="upper left",
-        ncol=4,
-        fontsize=8,
+    pnl_colors = ["#16875b" if value >= 0 else "#d64b4b" for value in ledger.trade_pnl]
+    figure.add_trace(
+        go.Scattergl(
+            x=trade_dates,
+            y=ledger.position_outlay.tolist(),
+            mode="markers",
+            marker={
+                "size": marker_sizes.tolist(),
+                "color": pnl_colors,
+                "line": {"color": "white", "width": 0.5},
+                "opacity": 0.82,
+            },
+            customdata=torch.stack(
+                (ledger.trade_pnl, 100 * ledger.position_fraction), dim=1
+            ).tolist(),
+            name="cash position outlay",
+            hovertemplate=(
+                "%{x|%Y-%m-%d %H:%M UTC}<br>outlay %{y:.4f} USDC"
+                "<br>PnL %{customdata[0]:+.4f} USDC"
+                "<br>%{customdata[1]:.4f}% available capital<extra></extra>"
+            ),
+        ),
+        row=8,
+        col=1,
+        secondary_y=False,
     )
-
-    axes[4].imshow(
-        timeline.gates.T.to(dtype=torch.int64).tolist(),
-        aspect="auto",
-        interpolation="nearest",
-        extent=(date_numbers[0], date_numbers[-1] + five_minutes, len(GATE_NAMES), 0),
-        cmap=ListedColormap(["#eadfda", "#2a78a5"]),
-        vmin=0,
-        vmax=1,
+    figure.add_trace(
+        go.Scatter(
+            x=[decision_dates[0], decision_dates[-1]],
+            y=[float(selected["target_notional_usdc"])] * 2,
+            mode="lines",
+            line={"color": "#555555", "width": 1, "dash": "dash"},
+            name="10 USDC target notional",
+            hoverinfo="skip",
+        ),
+        row=8,
+        col=1,
+        secondary_y=False,
     )
-    axes[4].set_yticks(
-        [index + 0.5 for index in range(len(GATE_NAMES))], GATE_NAMES, fontsize=8
-    )
-    axes[4].set_title(
-        "Воронка решения: blue = gate passed; FINAL FILL = все условия одновременно"
-    )
-    axes[4].grid(False)
-
-    trade_pnl = ledger.trade_pnl
-    axes[5].plot(
-        trade_dates,
-        ledger.cumulative_pnl.tolist(),
-        color="#1261a0",
-        linewidth=1.8,
-        label="cumulative modeled PnL",
-    )
-    axes[5].fill_between(
-        trade_dates, ledger.cumulative_pnl.tolist(), 0, color="#4e9bd1", alpha=0.18
-    )
-    axes[5].axhline(0, color="#333333", linewidth=0.8)
-    axes[5].set_ylabel("PnL, USDC")
-    drawdown_axis = axes[5].twinx()
-    drawdown_axis.plot(
-        trade_dates,
-        (-ledger.drawdown).tolist(),
-        color="#c83e4d",
-        linewidth=1.0,
-        label="drawdown",
-    )
-    drawdown_axis.set_ylabel("drawdown, USDC", color="#a72f3c")
-    axes[5].set_title(
-        "PnL и просадка по времени решения (PnL известен после settlement)"
-    )
-    handles, labels = axes[5].get_legend_handles_labels()
-    other_handles, other_labels = drawdown_axis.get_legend_handles_labels()
-    axes[5].legend(
-        handles + other_handles, labels + other_labels, loc="upper left", fontsize=8
-    )
-
-    colors = ["#16875b" if value >= 0 else "#d64b4b" for value in trade_pnl]
-    axes[6].scatter(
-        trade_dates,
-        ledger.position_outlay.tolist(),
-        s=marker_sizes.tolist(),
-        color=colors,
-        alpha=0.72,
-        edgecolor="white",
-        linewidth=0.3,
-        label="cash outlay; color = PnL sign",
-    )
-    axes[6].axhline(
-        float(selected["target_notional_usdc"]),
-        color="#555555",
-        linestyle="--",
-        linewidth=0.9,
-        label="10 USDC target notional",
-    )
-    axes[6].set_ylabel("position outlay, USDC")
-    position_axis = axes[6].twinx()
-    position_axis.plot(
-        trade_dates,
-        (100 * ledger.position_fraction).tolist(),
-        color="#8b5e34",
-        linewidth=0.7,
-        alpha=0.8,
-        label="outlay / available capital",
-    )
-    position_axis.set_ylabel("of available capital, %", color="#8b5e34")
-    axes[6].set_title(
-        "Размер позиции: fixed target 10 USDC, фактический размер ограничен top-of-book liquidity"
-    )
-    handles, labels = axes[6].get_legend_handles_labels()
-    other_handles, other_labels = position_axis.get_legend_handles_labels()
-    axes[6].legend(
-        handles + other_handles, labels + other_labels, loc="upper left", fontsize=8
+    figure.add_trace(
+        go.Scatter(
+            x=trade_dates,
+            y=(100 * ledger.position_fraction).tolist(),
+            mode="lines",
+            line={"color": "#8b5e34", "width": 1},
+            name="outlay / available capital",
+            hovertemplate="%{x|%Y-%m-%d %H:%M UTC}<br>%{y:.4f}%<extra></extra>",
+        ),
+        row=8,
+        col=1,
+        secondary_y=True,
     )
 
     minimum = decision_dates[0]
     maximum = decision_dates[-1]
-    _add_fold_boundaries(axes, config, minimum, maximum)
-    locator = mdates.AutoDateLocator(minticks=8, maxticks=18, tz=UTC)
-    axes[-1].xaxis.set_major_locator(locator)
-    axes[-1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator, tz=UTC))
-    axes[-1].set_xlabel("UTC time")
-    for axis in axes:
-        axis.set_xlim(minimum, maximum)
-        axis.margins(x=0)
-    figure.text(
-        0.5,
-        0.008,
-        "BTCUSDT — visualization-only proxy; authoritative UP/DOWN labels come from Gamma/Polymarket rules. "
-        "Размер позиции не зависит от probability/edge: target fixed at 10 USDC; outlay = fill cost + fee.",
-        ha="center",
-        fontsize=9,
-        color="#555555",
+    for fold in config.folds:
+        if minimum < fold.validation_start < maximum:
+            for row in range(1, 9):
+                figure.add_vline(
+                    x=fold.validation_start,
+                    line={"color": "#575757", "width": 1, "dash": "dash"},
+                    opacity=0.45,
+                    row=row,
+                    col=1,
+                )
+        if fold.validation_start < maximum and fold.validation_end_exclusive > minimum:
+            figure.add_annotation(
+                x=max(fold.validation_start, minimum),
+                y=0.998,
+                xref="x",
+                yref="paper",
+                text=fold.fold_id,
+                showarrow=False,
+                xanchor="left",
+                yanchor="top",
+                font={"size": 11, "color": "#444444"},
+            )
+    figure.update_yaxes(title_text="BTC/USD", row=1, col=1)
+    figure.update_yaxes(title_text="BTCUSDT", row=2, col=1)
+    figure.update_yaxes(title_text="outcome / side", row=3, col=1)
+    figure.update_yaxes(
+        title_text="probability / ask", range=[-0.02, 1.02], row=4, col=1
     )
-    figure.tight_layout(rect=(0.025, 0.025, 0.985, 0.955))
-    figure.savefig(png_path, dpi=180, metadata={"Software": "polymath_1M"})
-    figure.savefig(svg_path, metadata={"Creator": "polymath_1M", "Date": None})
-    plt.close(figure)
+    figure.update_yaxes(title_text="net edge", row=5, col=1, secondary_y=False)
+    figure.update_yaxes(title_text="persistence", row=5, col=1, secondary_y=True)
+    figure.update_yaxes(title_text="gate", row=6, col=1)
+    figure.update_yaxes(title_text="PnL, USDC", row=7, col=1, secondary_y=False)
+    figure.update_yaxes(title_text="drawdown, USDC", row=7, col=1, secondary_y=True)
+    figure.update_yaxes(title_text="outlay, USDC", row=8, col=1, secondary_y=False)
+    figure.update_yaxes(
+        title_text="available capital, %", row=8, col=1, secondary_y=True
+    )
+    figure.update_xaxes(
+        type="date",
+        range=[minimum, maximum],
+        showspikes=True,
+        spikemode="across",
+        spikesnap="cursor",
+        spikethickness=1,
+    )
+    figure.update_xaxes(title_text="UTC time", row=8, col=1)
+    figure.update_layout(
+        title={
+            "text": (
+                "Stage 4d BTC 5m — development replay по UTC"
+                f"<br><sup>{len(ledger)} сделок | PnL "
+                f"{float(ledger.cumulative_pnl[-1]):+.2f} USDC | "
+                f"сценарный капитал {starting_capital:,.0f} USDC</sup>"
+            ),
+            "x": 0.5,
+            "xanchor": "center",
+            "y": 0.995,
+            "yanchor": "top",
+        },
+        template="plotly_white",
+        height=2_650,
+        autosize=True,
+        hovermode="x unified",
+        margin={"l": 100, "r": 100, "t": 200, "b": 120},
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.005,
+            "xanchor": "left",
+            "x": 0,
+            "font": {"size": 10},
+        },
+    )
+    figure.add_annotation(
+        x=0.5,
+        y=-0.035,
+        xref="paper",
+        yref="paper",
+        text=(
+            "Обе price series — visual context и не входят в текущую модель. "
+            "Polymarket Chainlink history — minute frontend proxy, не raw RTDS/signed report. "
+            "Position target fixed at 10 USDC; outlay = fill cost + fee."
+        ),
+        showarrow=False,
+        font={"size": 11, "color": "#555555"},
+    )
+    figure.write_html(
+        str(html_path),
+        include_plotlyjs=True,
+        full_html=True,
+        auto_open=False,
+        config={
+            "displaylogo": False,
+            "responsive": True,
+            "scrollZoom": True,
+            "toImageButtonOptions": {
+                "format": "png",
+                "filename": "stage4d_btc_dual_price_signals",
+                "width": 1_800,
+                "height": 2_650,
+                "scale": 1,
+            },
+        },
+    )
 
 
 def _summary(
     timeline: SignalTimeline,
     selected: dict[str, Any],
     starting_capital: float,
-    btc_provenance: dict[str, Any],
+    chainlink_provenance: dict[str, Any],
+    binance_provenance: dict[str, Any],
+    chainlink_at_decision: torch.Tensor,
+    binance_at_decision: torch.Tensor,
 ) -> dict[str, Any]:
     filled_indices, ledger = _trade_ledger(timeline, starting_capital)
     status_counts = torch.bincount(
         timeline.status_code, minlength=len(STATUS_NAMES)
     ).tolist()
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "strategy_id": selected["strategy_id"],
         "period": {
             "first_decision_utc": datetime.fromtimestamp(
@@ -780,21 +945,47 @@ def _summary(
         },
         "outcome_source": "Gamma authoritative binary outcome for each BTC 5m market",
         "btc_price_context": {
-            **btc_provenance,
-            "semantic": (
-                "visualization-only Binance BTCUSDT proxy; not Chainlink resolution "
-                "price and not used by the strategy"
-            ),
+            "polymarket_chainlink": {
+                **_compact_context_provenance(chainlink_provenance),
+                "semantic": (
+                    "visualization-only minute Polymarket frontend history from "
+                    "the Chainlink price family; not raw RTDS or a signed report"
+                ),
+            },
+            "binance": {
+                **_compact_context_provenance(binance_provenance),
+                "semantic": (
+                    "visualization-only Binance BTCUSDT independent spot proxy"
+                ),
+            },
+            "both_are_strategy_inputs": False,
+            "chainlink_minus_binance_at_decision": {
+                "minimum": float(
+                    (chainlink_at_decision - binance_at_decision).min().item()
+                ),
+                "mean": float(
+                    (chainlink_at_decision - binance_at_decision).mean().item()
+                ),
+                "maximum": float(
+                    (chainlink_at_decision - binance_at_decision).max().item()
+                ),
+            },
         },
         "holdout_rows_loaded": 0,
         "holdout_opened": False,
     }
 
 
+def _compact_context_provenance(provenance: dict[str, Any]) -> dict[str, Any]:
+    """Keep audit anchors without duplicating every raw-file record."""
+    return {key: value for key, value in provenance.items() if key != "files"}
+
+
 def run_stage4d_time_chart(
     config_path: str | Path,
     proposal_path: str | Path,
     binance_config_path: str | Path,
+    chainlink_config_path: str | Path,
     *,
     starting_capital: float,
     data_root: str | Path = "data/historical",
@@ -835,7 +1026,7 @@ def run_stage4d_time_chart(
         device,
     )
     context_start_s = int(config.folds[0].validation_start.timestamp())
-    klines, btc_provenance = load_binance_klines(
+    klines, binance_provenance = load_binance_klines(
         binance_config_path,
         data_root,
         start_s=context_start_s,
@@ -843,39 +1034,69 @@ def run_stage4d_time_chart(
     )
     expected_minutes = (development_end_s - context_start_s) // 60
     if len(klines) != expected_minutes:
-        raise TimeChartError("BTC visualization context is not minute-complete")
-    btc_at_decision = _match_decision_opens(timeline.decision_s, klines)
+        raise TimeChartError("Binance visualization context is not minute-complete")
+    chainlink, chainlink_provenance = load_polymarket_chainlink_series(
+        chainlink_config_path, data_root
+    )
+    if len(chainlink) != expected_minutes:
+        raise TimeChartError(
+            "Polymarket Chainlink visualization context is not minute-complete"
+        )
+    binance_at_decision = _match_decision_opens(timeline.decision_s, klines)
+    chainlink_at_decision = _match_chainlink_values(timeline.decision_s, chainlink)
     run_dir = Path(output_root) / (
         f"{started.strftime('%Y%m%dT%H%M%SZ')}_stage4d_"
-        f"{strategy.strategy_id}_time_signals"
+        f"{strategy.strategy_id}_plotly_dual_price"
     )
     run_dir.mkdir(parents=True, exist_ok=False)
     signals_path = run_dir / "signals.csv"
-    btc_path = run_dir / "btc_context.csv"
+    binance_path = run_dir / "binance_btcusdt_context.csv"
+    chainlink_path = run_dir / "polymarket_chainlink_btcusd_context.csv"
     summary_path = run_dir / "summary.json"
-    png_path = run_dir / "time_pnl_btc_outcomes_signals.png"
-    svg_path = run_dir / "time_pnl_btc_outcomes_signals.svg"
-    _write_signals_csv(signals_path, timeline, btc_at_decision, starting_capital)
-    _write_btc_csv(btc_path, klines)
+    html_path = run_dir / "time_pnl_dual_price_outcomes_signals.html"
+    _write_signals_csv(
+        signals_path,
+        timeline,
+        chainlink_at_decision,
+        binance_at_decision,
+        starting_capital,
+    )
+    _write_binance_csv(binance_path, klines)
+    _write_chainlink_csv(chainlink_path, chainlink)
     _write_json(
         summary_path,
-        _summary(timeline, selected, starting_capital, btc_provenance),
+        _summary(
+            timeline,
+            selected,
+            starting_capital,
+            chainlink_provenance,
+            binance_provenance,
+            chainlink_at_decision,
+            binance_at_decision,
+        ),
     )
     _render_chart(
-        png_path,
-        svg_path,
+        html_path,
         timeline,
         klines,
-        btc_at_decision,
+        chainlink,
+        chainlink_at_decision,
+        binance_at_decision,
         selected,
         config,
         starting_capital,
     )
-    artifacts = (signals_path, btc_path, summary_path, png_path, svg_path)
+    artifacts = (
+        signals_path,
+        binance_path,
+        chainlink_path,
+        summary_path,
+        html_path,
+    )
     _write_json(
         run_dir / "run_record.json",
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "started_at": started.isoformat(),
             "completed_at": datetime.now(UTC).isoformat(),
             "runtime_seconds": time.monotonic() - started_monotonic,
@@ -887,7 +1108,13 @@ def run_stage4d_time_chart(
             "proposal_sha256": _sha256(Path(proposal_path)),
             "proposal_source_commit": proposal["source_commit"],
             "binance_config_path": str(binance_config_path),
-            "binance_config_sha256": btc_provenance["config_sha256"],
+            "binance_config_sha256": binance_provenance["config_sha256"],
+            "chainlink_config_path": str(chainlink_config_path),
+            "chainlink_config_sha256": chainlink_provenance["config_sha256"],
+            "binance_data_provenance": _compact_context_provenance(binance_provenance),
+            "chainlink_data_provenance": _compact_context_provenance(
+                chainlink_provenance
+            ),
             "market_data_provenance": market_provenance.__dict__,
             "holdout_rows_loaded": 0,
             "holdout_opened": False,
@@ -895,7 +1122,7 @@ def run_stage4d_time_chart(
             "device": str(device),
             "dtype": config.dtype,
             "torch_version": torch.__version__,
-            "matplotlib_version": matplotlib.__version__,
+            "plotly_version": plotly.__version__,
             "python": platform.python_version(),
             "artifacts": {path.name: _sha256(path) for path in artifacts},
         },

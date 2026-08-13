@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "dataset_id": "polymarket_chainlink_btcusd_1m_stage4d_development",
+  "provider": "Polymarket frontend proxy",
+  "endpoint": "https://polymarket.com/api/crypto/price-history",
+  "symbol": "BTC",
+  "variant": "hourly",
+  "period_start": "2026-04-28T00:00:00Z",
+  "period_end_exclusive": "2026-05-14T00:00:00Z",
+  "request_span_minutes": 60,
+  "context_only": true,
+  "max_workers": 8
+}
