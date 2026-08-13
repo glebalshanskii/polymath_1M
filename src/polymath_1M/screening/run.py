@@ -86,6 +86,11 @@ def _load_rows(config: ScreeningConfig) -> tuple[list[dict[str, Any]], dict[str,
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("data_contract_sha256") != config.data_contract_sha256:
         raise ScreeningRunError("PMXT manifest and config hashes differ")
+    if (
+        int(manifest.get("hour_count", 0)) != 192
+        or int(manifest.get("market_count", 0)) != 13_036
+    ):
+        raise ScreeningRunError("PMXT dataset is incomplete for the frozen horizon")
     rows: list[dict[str, Any]] = []
     for item in manifest["hours"]:
         path = Path(item["parquet_path"])
