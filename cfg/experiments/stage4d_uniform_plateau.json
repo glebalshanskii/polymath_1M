@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "experiment_id": "stage4d_uniform_plateau_20260422_20260518",
+  "data_config": "cfg/experiments/stage4c_market_data.json",
+  "dataset_config": "cfg/datasets/kacho_5m.json",
+  "dataset_root": "data/historical",
+  "assets": ["BTC", "ETH", "SOL", "XRP"],
+  "strategy_configs": [
+    "cfg/strategies/stage4c_btc_5m.json",
+    "cfg/strategies/stage4c_eth_5m.json",
+    "cfg/strategies/stage4c_sol_5m.json",
+    "cfg/strategies/stage4c_xrp_5m.json",
+    "cfg/strategies/stage4c_multi_asset_5m.json"
+  ],
+  "folds": [
+    {
+      "fold_id": "fold_1",
+      "train_start": "2026-04-22T00:00:00Z",
+      "train_end_exclusive": "2026-04-28T00:00:00Z",
+      "validation_start": "2026-04-28T00:00:00Z",
+      "validation_end_exclusive": "2026-05-02T00:00:00Z"
+    },
+    {
+      "fold_id": "fold_2",
+      "train_start": "2026-04-22T00:00:00Z",
+      "train_end_exclusive": "2026-05-02T00:00:00Z",
+      "validation_start": "2026-05-02T00:00:00Z",
+      "validation_end_exclusive": "2026-05-06T00:00:00Z"
+    },
+    {
+      "fold_id": "fold_3",
+      "train_start": "2026-04-22T00:00:00Z",
+      "train_end_exclusive": "2026-05-06T00:00:00Z",
+      "validation_start": "2026-05-06T00:00:00Z",
+      "validation_end_exclusive": "2026-05-10T00:00:00Z"
+    },
+    {
+      "fold_id": "fold_4",
+      "train_start": "2026-04-22T00:00:00Z",
+      "train_end_exclusive": "2026-05-10T00:00:00Z",
+      "validation_start": "2026-05-10T00:00:00Z",
+      "validation_end_exclusive": "2026-05-14T00:00:00Z"
+    }
+  ],
+  "holdout_start": "2026-05-14T00:00:00Z",
+  "holdout_end_exclusive": "2026-05-18T00:00:00Z",
+  "minimum_ask_grid": [
+    0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50,
+    0.55, 0.60, 0.65, 0.70, 0.75, 0.80
+  ],
+  "maximum_ask_grid": [
+    0.50, 0.55, 0.60, 0.65, 0.70,
+    0.75, 0.80, 0.85, 0.90, 0.95
+  ],
+  "minimum_net_edge_grid": [
+    0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08
+  ],
+  "minimum_persistence_grid": [
+    0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.22, 0.24, 0.26, 0.28,
+    0.30, 0.32, 0.34, 0.36, 0.38, 0.40, 0.42, 0.44, 0.46, 0.48,
+    0.50, 0.52, 0.54, 0.56, 0.58, 0.60, 0.62, 0.64, 0.66, 0.68,
+    0.70, 0.72, 0.74, 0.76, 0.78, 0.80, 0.82, 0.84, 0.86, 0.88,
+    0.90
+  ],
+  "minimum_support": 1,
+  "selection_extra_cost_per_share": 0.01,
+  "stress_extra_cost_per_share": 0.02,
+  "minimum_fold_fills": 10,
+  "minimum_fold_fill_fraction": 0.005,
+  "minimum_pooled_fills": 100,
+  "minimum_pooled_fill_fraction": 0.01,
+  "minimum_positive_folds": 3,
+  "minimum_positive_stress_folds": 3,
+  "minimum_pooled_profit_factor": 1.10,
+  "minimum_plateau_median_pnl_usdc": 0.0,
+  "minimum_plateau_median_stress_pnl_usdc": 0.0,
+  "minimum_plateau_median_positive_folds": 3,
+  "minimum_plateau_median_positive_stress_folds": 3,
+  "seed": 20260813,
+  "device": "cuda",
+  "dtype": "float64"
+}
