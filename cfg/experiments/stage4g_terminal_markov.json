@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "experiment_id": "stage4g_terminal_markov_btc5m_20260221_20260514",
+  "primary_source_config": "cfg/experiments/stage4e_regime_models.json",
+  "early_source_config": "cfg/experiments/stage4e_trent_robustness.json",
+  "asset": "BTC",
+  "duration": "5m",
+  "decision_seconds_before_end": 60,
+  "transition_horizon_seconds": 60,
+  "execution_latency_seconds": 1,
+  "state_bin_edges": [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.000001],
+  "transition_pseudocount": 1.0,
+  "minimum_state_support": 50,
+  "terminal_residual_prior_strength": 100.0,
+  "maximum_absolute_residual": 0.10,
+  "minimum_probability": 0.01,
+  "maximum_probability": 0.99,
+  "variants": [
+    {
+      "variant_id": "market_anchor_control",
+      "state_policy": "market_mid_no_learned_residual",
+      "apply_support_gate": false
+    },
+    {
+      "variant_id": "current_state_control",
+      "state_policy": "current_price_bin_terminal_residual",
+      "apply_support_gate": true
+    },
+    {
+      "variant_id": "transition_pair_candidate",
+      "state_policy": "previous_current_price_bin_terminal_residual",
+      "apply_support_gate": true
+    }
+  ],
+  "minimum_ask": 0.60,
+  "maximum_ask": 0.90,
+  "minimum_persistence": 0.87,
+  "minimum_net_edge": 0.02,
+  "target_notional_usdc": 10.0,
+  "platform_fee_round_decimals": 4,
+  "primary_extra_cost_per_share": 0.01,
+  "stress_extra_cost_per_share": 0.02,
+  "candidate_variant": "transition_pair_candidate",
+  "ablation_variant": "current_state_control",
+  "minimum_candidate_fills_per_source": 100,
+  "minimum_positive_primary_folds": 6,
+  "minimum_positive_kacho_folds": 4,
+  "minimum_positive_trent_folds": 2,
+  "minimum_profit_factor": 1.10,
+  "seed": 20260813,
+  "device": "cuda",
+  "dtype": "float64"
+}

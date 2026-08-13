@@ -171,6 +171,15 @@ terminal payout. Stage 4f впервые проверил literal formula отд
 feature, а не воспроизведением псевдокода. Результат:
 [Stage 4f report](murtazin_literal_markov_stage4f.md).
 
+Stage 4g исправил несопоставимость единиц: `WIN/LOSE` сделаны terminal states,
+а прогноз строится как market midpoint плюс регуляризованный train-only
+terminal residual для текущего state или пары `previous -> current`. Entry
+использует terminal net edge после fees и execution haircut; one-step
+transition probability в edge не входит. На fixed `persistence >=0.87` модель
+дала 0 signals/fills на обоих development sources, поэтому исправление принято
+как правильный контракт, но не как торговый candidate. Результат:
+[Stage 4g report](murtazin_terminal_markov_stage4g.md).
+
 ## 4. Практическая модель
 
 ### 4.1. State

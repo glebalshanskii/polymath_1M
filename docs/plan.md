@@ -2,10 +2,10 @@
 
 - Обновлено: 2026-08-13
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Этап 4e завершён; M6 отклонена на early robustness и
-  one-shot holdout; 24-hour Stage 2 validation идёт параллельно**
-- Следующий deliverable: Stage 4f stable-shrinkage protocol и новый
-  prospective confirmation horizon; Stage 5 пока не разрешён
+- Текущий этап: **Stage 4g terminal Markov завершён без executable signals;
+  candidate отклонён**
+- Следующий deliverable: новый Stage 4h transition-feature protocol; Stage 5
+  пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -390,17 +390,43 @@ prospective paper trading.
 [ADR-0014](adr/0014-literal-markov-rule-rejected.md) и
 [frozen protocol](protocols/screening/0006_stage4f_literal_markov.md).
 
-### Следующий practical шаг: Stage 4g absorbing-terminal Markov
+### Stage 4g: market-anchored terminal Markov
 
-Новый development contract должен строить causal finite-horizon chain с
-terminal `UP/DOWN` absorbing states, чтобы $P^h$ оценивала именно payout к
-resolution и была сопоставима с ask после fees. State/time discretization,
-regularization и model refresh фиксируются до run. Уже открытый May holdout —
-только diagnostic; подтверждение требует нового prospective horizon.
+Статус: **completed 2026-08-13; `no_executable_signals`; holdout unopened**.
+
+Terminal forecast строился как market-anchored residual
+для текущего price state и для пары `previous -> current`; `WIN/LOSE` являются
+absorbing states. С ask сравнивается terminal payout после fee и execution
+haircut, а article persistence `>=0.87` остаётся отдельным stability filter.
+
+- Все три variants дали 0 signals/fills на 15,477 OOS decisions.
+- Candidate funnel: Kacho `9,351 -> 9,014 -> 3,531 -> 344 -> 0`; Trent
+  `5,573 -> 5,021 -> 2,144 -> 215 -> 0` для
+  `valid -> support -> ask -> persistence -> net edge`.
+- Pair-state Brier немного хуже current-state control на Kacho и лишь на
+  `0.000025` лучше на Trent; устойчивого forecast improvement нет.
+- Ложный longshot edge Stage 4f исчез: market-anchor control не имеет
+  положительного edge после spread/fees/costs.
+- Порог не ослабляется post-hoc, May holdout не открывался, Stage 5 не
+  разрешён.
+
+Подробности: [Stage 4g report](reports/murtazin_terminal_markov_stage4g.md),
+[ADR-0015](adr/0015-terminal-markov-no-candidate.md),
+[frozen protocol](protocols/screening/0007_stage4g_terminal_markov.md) и
+[config](../cfg/experiments/stage4g_terminal_markov.json).
+
+### Следующий practical шаг: Stage 4h transition feature
+
+Новый protocol должен оставить `tau=0.87` source-faithful reference, но
+проверить transition dynamics как регуляризованный input terminal forecast,
+а не как hard veto после прогноза. Candidate обязан улучшить калибровку и PnL
+относительно market/current-state controls на обоих development sources. Уже
+открытый May holdout остаётся только diagnostic; подтверждение требует нового
+prospective horizon.
 
 ## Этап 5. Prospective paper trading
 
-Статус: **blocked until Stage 4g selects a cross-regime development candidate
+Статус: **blocked until a later stage selects a cross-regime development candidate
 and freezes a new prospective contract; collector burn-in may continue
 independently**.
 
