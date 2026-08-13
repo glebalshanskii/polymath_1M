@@ -81,6 +81,14 @@ cell не прошёл весь frozen stability gate. Лучший SOL near-mis
 `inconclusive_no_candidate`; новый четырёхдневный holdout не читался. Детали —
 в [Stage 4c report](docs/reports/murtazin_walkforward_stage4c.md).
 
+Этап 4d повторил development search на равномерной absolute grid и заменил
+произвольный 50% worst-neighbour veto на median локального плато. Выбран BTC
+5m: 235 fills, `+168.60 USDC`, PF 1.305, `+136.40 USDC` при 2¢/share stress.
+Все девять локальных policies прибыльны pooled в обоих cost scenarios;
+development return on modeled entry turnover — 7.54%. Holdout не читался,
+поэтому это candidate, а не подтверждённая стратегия. Детали — в
+[Stage 4d report](docs/reports/murtazin_uniform_plateau_stage4d.md).
+
 Запуск аудита:
 
 ```bash
@@ -153,3 +161,13 @@ uv run polymath_1M stage4c-calibrate \
 
 Calibration не читает Stage 4c holdout. Поскольку eligible candidate не
 получен, selected config и команда открытия holdout намеренно отсутствуют.
+
+Stage 4d development-only повтор:
+
+```bash
+uv run polymath_1M stage4d-calibrate \
+  --config cfg/experiments/stage4d_uniform_plateau.json
+```
+
+Команда ограничивает source scan началом holdout и записывает
+`holdout_rows_loaded = 0`; команды открытия Stage 4d holdout пока нет.

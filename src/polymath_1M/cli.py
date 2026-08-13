@@ -12,6 +12,7 @@ from .historical.overlap import run_pmxt_overlap_smoke
 from .screening.calibration import run_stage4b_calibration
 from .screening.holdout import run_stage4b_test
 from .screening.openmarket import run_openmarket_sanity
+from .screening.plateau import run_stage4d_calibration
 from .screening.pmxt_dataset import build_stage4_pmxt_dataset
 from .screening.run import run_stage4_screening
 from .screening.universe import build_stage4_universe
@@ -205,6 +206,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/calibration",
         help="ignored directory for Stage 4c calibration artifacts",
     )
+    plateau = subparsers.add_parser(
+        "stage4d-calibrate",
+        help="run development-only uniform-grid plateau calibration",
+    )
+    plateau.add_argument(
+        "--config",
+        default="cfg/experiments/stage4d_uniform_plateau.json",
+        help="path to the frozen Stage 4d plateau config",
+    )
+    plateau.add_argument(
+        "--output-root",
+        default="outputs/calibration",
+        help="ignored directory for Stage 4d development artifacts",
+    )
     return parser
 
 
@@ -263,3 +278,5 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(run_stage4b_test(args.config, args.output_root))
     elif args.command == "stage4c-calibrate":
         print(run_stage4c_calibration(args.config, args.output_root))
+    elif args.command == "stage4d-calibrate":
+        print(run_stage4d_calibration(args.config, args.output_root))
