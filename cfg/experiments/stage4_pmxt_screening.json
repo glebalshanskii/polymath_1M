@@ -29,7 +29,7 @@
   "seed": 20260813,
   "device": "cuda",
   "dtype": "float64",
-  "pmxt_workers": 4,
+  "pmxt_workers": 6,
   "strategy_configs": [
     "cfg/strategies/favorite_hourly.json",
     "cfg/strategies/directional_mid_15m.json",
