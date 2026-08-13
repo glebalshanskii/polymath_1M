@@ -133,6 +133,23 @@ def _eligible(
     config: WalkForwardConfig,
     fold_markets: list[int],
 ) -> torch.Tensor:
+    gates = _gate_masks(
+        pooled,
+        neighbor_floor,
+        neighbor_positive_folds,
+        config,
+        fold_markets,
+    )
+    return torch.stack(tuple(gates.values())).all(dim=0)
+
+
+def _gate_masks(
+    pooled: PooledMetrics,
+    neighbor_floor: torch.Tensor,
+    neighbor_positive_folds: torch.Tensor,
+    config: WalkForwardConfig,
+    fold_markets: list[int],
+) -> dict[str, torch.Tensor]:
     fold_exposure = torch.stack(
         [
             pooled.fold_fill_count[index]
@@ -149,23 +166,31 @@ def _eligible(
         math.ceil(config.minimum_pooled_fill_fraction * total_markets),
     )
     maximum_pooled = math.floor(config.maximum_pooled_fill_fraction * total_markets)
-    return (
-        fold_exposure
-        & (pooled.pooled_fill_count >= minimum_pooled)
-        & (pooled.pooled_fill_count <= maximum_pooled)
-        & (pooled.pooled_net_pnl > 0)
-        & (pooled.pooled_profit_factor >= config.minimum_pooled_profit_factor)
-        & (pooled.positive_folds >= config.minimum_positive_folds)
-        & (pooled.pooled_stress_pnl > 0)
-        & (pooled.positive_stress_folds >= config.minimum_positive_stress_folds)
-        & (pooled.fold_max_drawdown <= config.maximum_fold_drawdown_usdc).all(dim=0)
-        & (neighbor_floor > 0)
-        & (
+    return {
+        "fold_exposure": fold_exposure,
+        "pooled_minimum_exposure": pooled.pooled_fill_count >= minimum_pooled,
+        "pooled_maximum_exposure": pooled.pooled_fill_count <= maximum_pooled,
+        "pooled_positive_pnl": pooled.pooled_net_pnl > 0,
+        "pooled_profit_factor": (
+            pooled.pooled_profit_factor >= config.minimum_pooled_profit_factor
+        ),
+        "positive_fold_count": pooled.positive_folds >= config.minimum_positive_folds,
+        "pooled_positive_stress_pnl": pooled.pooled_stress_pnl > 0,
+        "positive_stress_fold_count": (
+            pooled.positive_stress_folds >= config.minimum_positive_stress_folds
+        ),
+        "fold_drawdown": (
+            pooled.fold_max_drawdown <= config.maximum_fold_drawdown_usdc
+        ).all(dim=0),
+        "positive_neighbor_floor": neighbor_floor > 0,
+        "neighbor_pnl_fraction": (
             neighbor_floor
             >= config.neighbor_minimum_pnl_fraction * pooled.pooled_net_pnl
-        )
-        & (neighbor_positive_folds >= config.minimum_neighbor_positive_folds)
-    )
+        ),
+        "neighbor_positive_fold_count": (
+            neighbor_positive_folds >= config.minimum_neighbor_positive_folds
+        ),
+    }
 
 
 def _optional(value: torch.Tensor) -> float | None:
@@ -252,6 +277,21 @@ def _selection_key(record: dict[str, Any]) -> tuple[Any, ...]:
     return (
         -metrics["positive_folds"],
         -metrics["minimum_fold_pnl_usdc"],
+        -metrics["pooled_stress_pnl_usdc"],
+        -metrics["pooled_net_pnl_usdc"],
+        metrics["pooled_fill_fraction"],
+        record["strategy_id"],
+        tuple(record["grid_indices"]),
+    )
+
+
+def _diagnostic_key(record: dict[str, Any]) -> tuple[Any, ...]:
+    metrics = record["walkforward"]
+    diagnostic = record["diagnostic"]
+    return (
+        -diagnostic["passed_gates"],
+        -metrics["positive_stress_folds"],
+        -metrics["positive_folds"],
         -metrics["pooled_stress_pnl_usdc"],
         -metrics["pooled_net_pnl_usdc"],
         metrics["pooled_fill_fraction"],
@@ -410,13 +450,14 @@ def run_stage4c_calibration(
         neighbor_positive = _neighbor_positive_folds(
             grids[0], pooled.fold_net_pnl
         )
-        eligible = _eligible(
+        gates = _gate_masks(
             pooled,
             neighbor_floor,
             neighbor_positive,
             config,
             fold_markets,
         )
+        eligible = torch.stack(tuple(gates.values())).all(dim=0)
         eligible_indices = (
             torch.nonzero(eligible, as_tuple=False).flatten().detach().cpu().tolist()
         )
@@ -435,12 +476,49 @@ def run_stage4c_calibration(
         ]
         records.sort(key=_selection_key)
         all_eligible.extend(records)
+        passed_gates = torch.stack(tuple(gates.values())).sum(dim=0)
+        maximum_passed_gates = int(passed_gates.max().item())
+        near_indices = (
+            torch.nonzero(
+                passed_gates == maximum_passed_gates, as_tuple=False
+            )
+            .flatten()
+            .detach()
+            .cpu()
+            .tolist()
+        )
+        near_records = []
+        for index in near_indices:
+            record = _record(
+                index,
+                strategy_path,
+                strategy,
+                grids,
+                pooled,
+                neighbor_floor,
+                neighbor_positive,
+                config,
+            )
+            record["diagnostic"] = {
+                "passed_gates": int(passed_gates[index].item()),
+                "total_gates": len(gates),
+                "failed_gates": [
+                    name for name, mask in gates.items() if not bool(mask[index].item())
+                ],
+            }
+            near_records.append(record)
+        near_records.sort(key=_diagnostic_key)
         family_results.append(
             {
                 "strategy_id": strategy.strategy_id,
                 "strategy_config": strategy_path,
                 "grid_cells": len(grids[0]),
                 "eligible_cells": len(records),
+                "independent_gate_pass_cells": {
+                    name: int(mask.sum().item()) for name, mask in gates.items()
+                },
+                "maximum_passed_gates": maximum_passed_gates,
+                "top_near_miss": near_records[:10],
                 "fold_validation_markets": fold_markets,
                 "persistence_thresholds_by_fold": [
                     grid.persistence_values.detach().cpu().tolist() for grid in grids

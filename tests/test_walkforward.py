@@ -7,6 +7,7 @@ import torch
 from polymath_1M.screening.calibration import GridMetrics, ParameterGrid
 from polymath_1M.screening.walkforward import (
     _eligible,
+    _gate_masks,
     _neighbor_positive_folds,
     _pool,
 )
@@ -95,6 +96,15 @@ class WalkForwardTest(unittest.TestCase):
             fold_markets=[1000] * 4,
         )
         self.assertEqual(eligible.tolist(), [True])
+        gates = _gate_masks(
+            pooled,
+            neighbor_floor=torch.tensor([10.0], dtype=torch.float64),
+            neighbor_positive_folds=torch.tensor([3]),
+            config=config,
+            fold_markets=[1000] * 4,
+        )
+        self.assertEqual(len(gates), 12)
+        self.assertTrue(all(mask.tolist() == [True] for mask in gates.values()))
 
 
 if __name__ == "__main__":
