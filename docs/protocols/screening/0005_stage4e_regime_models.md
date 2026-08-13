@@ -180,6 +180,12 @@ Chainlink features берутся из отдельного pinned minute archiv
 causal lag M6. Trent repository pin:
 `6be20463ce33795178c121e7bd15ed428904b5bd`, license `CC-BY-SA-4.0`.
 
+Pre-run coverage audit обнаружил 3 пустых `steps.parquet` из 8,803 файлов
+(`1428630`, `1428753`, `1642110`). Они не становятся синтетическими no-fills:
+adapter исключает их и сохраняет точные paths в provenance. Run допустим при
+заранее зафиксированной доле непустых episodes `>= 99.9%`; фактически
+`8,800 / 8,803 = 99.966%`.
+
 ## Amendment 2026-08-13: frozen M6 holdout gate
 
 Primary development run `20260813T123431Z` выбрал

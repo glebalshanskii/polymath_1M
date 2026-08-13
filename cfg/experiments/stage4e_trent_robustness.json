@@ -16,6 +16,7 @@
   "decision_seconds_before_end": 60,
   "transition_horizon_seconds": 60,
   "execution_latency_seconds": 1,
+  "minimum_nonempty_market_fraction": 0.999,
   "execution_size_assumption": "target_notional_available_at_best_ask_only_if_total_ask_notional_covers_target",
   "outcome_policy": "gamma_authoritative_resolved_outcome"
 }

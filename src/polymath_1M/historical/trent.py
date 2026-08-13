@@ -540,6 +540,7 @@ def load_trent_decision_batch(
     transition_horizon_seconds: int,
     execution_latency_seconds: int,
     target_notional_usdc: float,
+    minimum_nonempty_market_fraction: float,
 ) -> tuple[DecisionBatch, dict[str, Any]]:
     config = load_trent_config(config_path)
     gamma, gamma_provenance = load_trent_gamma_outcomes(
@@ -668,9 +669,13 @@ def load_trent_decision_batch(
         """
     ).fetch_arrow_table()
     connection.close()
-    if table.num_rows != config.expected_files:
+    loaded_fraction = table.num_rows / config.expected_files
+    if not 0 < minimum_nonempty_market_fraction <= 1:
+        raise TrentDataError("minimum nonempty market fraction must be in (0, 1]")
+    if loaded_fraction < minimum_nonempty_market_fraction:
         raise TrentDataError(
-            f"Trent adapter loaded {table.num_rows} markets, expected {config.expected_files}"
+            f"Trent adapter loaded {table.num_rows}/{config.expected_files} markets, "
+            f"below {minimum_nonempty_market_fraction:.3%} coverage"
         )
 
     def floats(name: str) -> torch.Tensor:
@@ -737,6 +742,20 @@ def load_trent_decision_batch(
     )
     snapshot_valid = timely & finite & bounded & (bids <= asks).all(dim=1)
     market_ids = tuple(str(value) for value in table["market_id"].to_pylist())
+    loaded_market_ids = set(market_ids)
+    if len(loaded_market_ids) != len(market_ids):
+        raise TrentDataError("adapted Trent market IDs are duplicated")
+    market_paths: dict[str, str] = {}
+    for record in manifest["files"]:
+        match = re.search(r"btc5m_market(\d+)_", str(record["path"]))
+        if match is None:
+            raise TrentDataError("Trent manifest market path is invalid")
+        market_paths[match.group(1)] = str(record["path"])
+    missing_market_files = sorted(
+        path
+        for market_id, path in market_paths.items()
+        if market_id not in loaded_market_ids
+    )
     if any(market_id not in gamma for market_id in market_ids):
         raise TrentDataError("Gamma outcome is missing from adapted Trent rows")
     outcomes = torch.tensor(
@@ -775,6 +794,9 @@ def load_trent_decision_batch(
             "files": config.expected_files,
             "markets": len(batch),
             "valid_markets": int(batch.snapshot_valid.sum().item()),
+            "source_market_files": config.expected_files,
+            "nonempty_market_fraction": loaded_fraction,
+            "missing_market_files": missing_market_files,
             "execution_semantics": (
                 "best ask with total-ask-size availability approximation"
             ),

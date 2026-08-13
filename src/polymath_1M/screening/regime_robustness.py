@@ -47,6 +47,7 @@ class EarlyRobustnessConfig:
     decision_seconds_before_end: int
     transition_horizon_seconds: int
     execution_latency_seconds: int
+    minimum_nonempty_market_fraction: float
     execution_size_assumption: str
     outcome_policy: str
     config_sha256: str
@@ -68,6 +69,7 @@ def load_early_robustness_config(path: str | Path) -> EarlyRobustnessConfig:
         "decision_seconds_before_end",
         "transition_horizon_seconds",
         "execution_latency_seconds",
+        "minimum_nonempty_market_fraction",
         "execution_size_assumption",
         "outcome_policy",
     }
@@ -123,6 +125,7 @@ def load_early_robustness_config(path: str | Path) -> EarlyRobustnessConfig:
         or int(payload["decision_seconds_before_end"]) != 60
         or int(payload["transition_horizon_seconds"]) != 60
         or int(payload["execution_latency_seconds"]) != 1
+        or float(payload["minimum_nonempty_market_fraction"]) != 0.999
         or payload["execution_size_assumption"]
         != "target_notional_available_at_best_ask_only_if_total_ask_notional_covers_target"
         or payload["outcome_policy"] != "gamma_authoritative_resolved_outcome"
@@ -144,6 +147,7 @@ def load_early_robustness_config(path: str | Path) -> EarlyRobustnessConfig:
         decision_seconds_before_end=60,
         transition_horizon_seconds=60,
         execution_latency_seconds=1,
+        minimum_nonempty_market_fraction=0.999,
         execution_size_assumption=str(payload["execution_size_assumption"]),
         outcome_policy=str(payload["outcome_policy"]),
         config_sha256=hashlib.sha256(canonical).hexdigest(),
@@ -171,6 +175,7 @@ def run_stage4e_early_robustness(
         transition_horizon_seconds=config.transition_horizon_seconds,
         execution_latency_seconds=config.execution_latency_seconds,
         target_notional_usdc=primary.target_notional_usdc,
+        minimum_nonempty_market_fraction=config.minimum_nonempty_market_fraction,
     )
     gamma_provenance = trent_provenance["gamma"]
     secondary = replace(

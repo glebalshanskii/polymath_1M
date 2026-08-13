@@ -20,6 +20,7 @@ class RegimeRobustnessTest(unittest.TestCase):
         self.assertEqual(
             config.outcome_policy, "gamma_authoritative_resolved_outcome"
         )
+        self.assertEqual(config.minimum_nonempty_market_fraction, 0.999)
         self.assertEqual(
             config.folds[-1].validation_end_exclusive_s,
             config.period_end_exclusive_s,
