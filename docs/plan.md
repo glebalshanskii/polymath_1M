@@ -4,8 +4,10 @@
 - Venue: **Polymarket CLOB**
 - Текущий этап: **Stage 4g terminal Markov завершён без executable signals;
   candidate отклонён**
-- Следующий deliverable: новый Stage 4h transition-feature protocol; Stage 5
-  пока не разрешён
+- Historical data policy: **только PMXT v2 для всех новых strategy runs**;
+  Kacho и Trent запрещены вне воспроизводимости завершённых этапов
+- Следующий deliverable: PMXT-only Stage 4h dataset/protocol; Stage 5 пока не
+  разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -33,8 +35,10 @@ prospective paper trading.
   30-day screenshot.
 - Literal `max(P[current_state])` не оценивает terminal payout; для
   ордера нужна terminal-probability model.
-- Исторический full-L2 не нужно накапливать самостоятельно: PMXT v2 публично
-  раздаёт CLOB event stream с 2026-04-13, а Kacho — компактный 5m pilot.
+- PMXT v2 публично раздаёт CLOB event stream с 2026-04-13 и является
+  единственным разрешённым historical market-data source для новых runs.
+- Kacho и Trent остаются только provenance завершённых Stage 3–4g; новые
+  train/validation/test на них запрещены.
 - 99.5–99.8¢ level locks, Kelly 0.71 и заявленный 55% diversification не
   переносятся в MVP.
 
@@ -417,12 +421,21 @@ haircut, а article persistence `>=0.87` остаётся отдельным sta
 
 ### Следующий practical шаг: Stage 4h transition feature
 
-Новый protocol должен оставить `tau=0.87` source-faithful reference, но
-проверить transition dynamics как регуляризованный input terminal forecast,
-а не как hard veto после прогноза. Candidate обязан улучшить калибровку и PnL
-относительно market/current-state controls на обоих development sources. Уже
-открытый May holdout остаётся только diagnostic; подтверждение требует нового
-prospective horizon.
+Сначала строится единый PMXT-only dataset с L2 states на нескольких frozen
+horizons до resolution и исполнением по receive-time book после latency.
+Gamma используется только для universe/rules/fees/terminal outcomes. Kacho,
+Trent, Binance, frontend Chainlink history и OpenMarket не участвуют в
+features, fit, selection или PnL.
+
+На этом dataset новый protocol должен оставить `tau=0.87` source-faithful
+reference, но проверить transition dynamics внутри terminal forecast, а не
+как hard veto после прогноза. Candidate сравнивается с market/current-state
+controls на одних PMXT opportunities. Если PMXT coverage недостаточна, статус
+будет `insufficient_data`, без подключения второго источника. Уже открытый
+May holdout остаётся только historical diagnostic; подтверждение требует
+нового prospective horizon.
+
+Data policy: [ADR-0016](adr/0016-pmxt-only-historical-market-data.md).
 
 ## Этап 5. Prospective paper trading
 

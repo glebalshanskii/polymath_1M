@@ -32,6 +32,25 @@ Agreed behavior, scope, research assumptions и experimental protocols фикс�
 отчёт. Protocol после запуска не превращай в отчёт и не переписывай под
 результат; необходимые изменения фиксируй как датированный amendment.
 
+### Источник historical market data
+
+- Для всех новых strategy experiments единственный допустимый источник
+  исторических котировок, стакана, trades и execution replay — **PMXT v2**.
+- Kacho и Trent McKelly запрещены для новых train/validation/test,
+  calibration, model selection и robustness runs. Их adapters, configs и
+  artifacts сохраняются только для воспроизводимости уже завершённых этапов.
+- Gamma API разрешён только как authoritative metadata layer: universe,
+  `condition_id`, token mapping, market rules, fee schedule и terminal outcome.
+  Он не заменяет PMXT как источник historical market state.
+- Binance, Polymarket frontend price history, OpenMarket и другие внешние
+  ряды не использовать как features или evidence нового backtest. Старые
+  visualization/sanity artifacts сохраняются как historical record.
+- Prospective paper/live данные поступают из собственного collector и не
+  смешиваются с historical PMXT estimand.
+- Если PMXT не покрывает нужный период или market, помечай observation как
+  unavailable и сокращай scope. Не заполняй пробел другим dataset без нового
+  явного решения пользователя и ADR.
+
 ## Исследовательские принципы
 
 - Для каждого результата фиксируй commit, config, seed, dataset version, model/checkpoint version, hardware, runtime, ключевые метрики и путь к артефактам.

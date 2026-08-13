@@ -52,12 +52,14 @@ PyTorch устанавливается из официального CUDA 13.0 i
 проверены `torch 2.13.0+cu130` и RTX 3080 Ti; numerical tests сохраняют CPU
 path, но canonical Stage 3/4 configs используют `device: cuda`.
 
-Для historical backtest не ждём собственного многомесячного архива. Primary
-source — публичный PMXT v2 CLOB event archive; компактный Kacho 5m dataset
-используется для быстрого запуска strategy engine. Pinned revisions,
-проверенная coverage и ограничения зафиксированы в
-[source audit](docs/reports/polymarket_historical_data_source_audit.md) и
-[ADR-0004](docs/adr/0004-historical-market-data.md).
+Для всех новых historical backtests используется только публичный PMXT v2
+CLOB event archive. Kacho и Trent сохраняются исключительно для
+воспроизводимости завершённых Stage 3–4g и запрещены для нового
+train/validation/test. Gamma даёт metadata, fees и terminal outcomes, но не
+market history. Правило зафиксировано в
+[ADR-0016](docs/adr/0016-pmxt-only-historical-market-data.md); прежний
+[source audit](docs/reports/polymarket_historical_data_source_audit.md)
+остаётся историей выбора источника.
 
 Этап 4 завершён без выбранной стратегии. Из 13,036 closed markets PMXT causal
 top доступен для 13,034; independent OpenMarket sanity совпал с PMXT. Однако
