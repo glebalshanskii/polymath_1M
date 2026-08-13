@@ -124,3 +124,27 @@ prospective holdout.
   обязано проходить все folds, а не только этот interval.
 - Chainlink frontend history — не raw signed report; его provenance и exact
   timestamps сохраняются, source drift остаётся риском.
+
+## Amendment 2026-08-13: minute-bar availability
+
+Первый development run `20260813T123056Z` выявил не улучшение, а data-timing
+failure. Frontend history point с timestamp `t` нельзя считать доступным в
+самом начале минуты `t`: визуальное сопоставление с 1 Hz CLOB показало, что он
+содержит движение, появляющееся после `t`. Поэтому результат исходного M5
+(`+1594.03 USDC`, PF `10.09`) объявлен invalid look-ahead diagnostic и не может
+участвовать в selection.
+
+Последовательность расширена без удаления исходного результата:
+
+- `m5_chainlink_regime_decay_timestamped_invalid` воспроизводит ошибочный
+  timestamp match только как отрицательный контроль;
+- `m6_chainlink_regime_decay_lagged` использует последний полностью
+  завершённый point не позже `decision_time - 60s`. Его path состоит из
+  offsets `[-60, 0, 60, 120, 180]` секунд от market start при decision на
+  `start + 240s`; point в саму decision minute не читается.
+
+Selection исключает M5 независимо от metrics. Остальные thresholds, folds,
+costs и gates не изменяются. Также исправляется presentation-only ошибка:
+CSV/Plotly первого run перезаписал строковый `side` числовым code; trading
+decision и PnL от этого не менялись. Повторный run создаёт новый artifact и не
+удаляет исходный.

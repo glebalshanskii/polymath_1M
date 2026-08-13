@@ -345,6 +345,9 @@ acceptance, затем self-review, и только после явного ра
 - Selection учитывает PnL, PF, fills, calibration, max drawdown, worst 24h и
   известный April failure window. Holdout открывается только после committed
   development proposal и self-review.
+- Первый M5 run выявил minute-bar look-ahead: timestamped point содержал
+  движение после decision timestamp. Он сохранён как invalid diagnostic;
+  amendment добавляет causal-lagged M6 и запрещает M5 участвовать в selection.
 
 Protocol: [Stage 4e regime models](protocols/screening/0005_stage4e_regime_models.md).
 

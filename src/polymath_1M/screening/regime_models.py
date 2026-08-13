@@ -110,7 +110,8 @@ VARIANTS = (
     "m2_continuous_price",
     "m3_continuous_price_decay",
     "m4_microstructure_decay",
-    "m5_chainlink_regime_decay",
+    "m5_chainlink_regime_decay_timestamped_invalid",
+    "m6_chainlink_regime_decay_lagged",
 )
 
 
@@ -360,9 +361,14 @@ def _match_exact(
 
 
 def chainlink_features(
-    batch: DecisionBatch, series: PolymarketChainlinkSeries
+    batch: DecisionBatch,
+    series: PolymarketChainlinkSeries,
+    *,
+    causal_lag_seconds: int = 0,
 ) -> torch.Tensor:
-    offsets = torch.arange(5, dtype=torch.int64) * 60
+    if causal_lag_seconds < 0 or causal_lag_seconds % 60:
+        raise RegimeModelError("Chainlink causal lag must be whole nonnegative minutes")
+    offsets = torch.arange(5, dtype=torch.int64) * 60 - causal_lag_seconds
     path_times = batch.market_start_s[:, None].cpu() + offsets[None, :]
     path = _match_exact(series, path_times.reshape(-1)).reshape(len(batch), 5)
     log_path = torch.log(path)
@@ -378,7 +384,9 @@ def chainlink_features(
 
 
 def common_features(
-    batch: DecisionBatch, chainlink: torch.Tensor
+    batch: DecisionBatch,
+    chainlink_timestamped: torch.Tensor,
+    chainlink_lagged: torch.Tensor,
 ) -> tuple[torch.Tensor, tuple[str, ...]]:
     clipped = torch.clamp(batch.current_mid_up, 1e-6, 1 - 1e-6)
     logit_mid = torch.log(clipped / (1 - clipped))
@@ -393,7 +401,14 @@ def common_features(
         dim=1,
     )
     return (
-        torch.cat((token, chainlink.to(token.device)), dim=1),
+        torch.cat(
+            (
+                token,
+                chainlink_timestamped.to(token.device),
+                chainlink_lagged.to(token.device),
+            ),
+            dim=1,
+        ),
         (
             "logit_mid_up",
             "mid_change_1m",
@@ -403,17 +418,22 @@ def common_features(
             "chainlink_return_market",
             "chainlink_return_1m",
             "chainlink_realized_vol",
+            "chainlink_lagged_return_market",
+            "chainlink_lagged_return_1m",
+            "chainlink_lagged_realized_vol",
         ),
     )
 
 
-def _feature_count(variant: str) -> int:
+def _feature_columns(variant: str) -> tuple[int, ...]:
     if variant in {"m2_continuous_price", "m3_continuous_price_decay"}:
-        return 1
+        return (0,)
     if variant == "m4_microstructure_decay":
-        return 5
-    if variant == "m5_chainlink_regime_decay":
-        return 8
+        return tuple(range(5))
+    if variant == "m5_chainlink_regime_decay_timestamped_invalid":
+        return tuple(range(8))
+    if variant == "m6_chainlink_regime_decay_lagged":
+        return (*range(5), 8, 9, 10)
     raise RegimeModelError(f"{variant} does not use logistic features")
 
 
@@ -544,7 +564,7 @@ def _diagnostic_rows(
         "forecast_probability": result.probability.detach().cpu(),
         "support": result.support.detach().cpu(),
         "persistence": result.persistence.detach().cpu(),
-        "side": result.side.detach().cpu(),
+        "side_code": result.side.detach().cpu(),
         "signal_ask": result.signal_ask.detach().cpu(),
         "fill_vwap": result.fill_vwap.detach().cpu(),
         "fill_cost": result.fill_cost.detach().cpu(),
@@ -559,7 +579,7 @@ def _diagnostic_rows(
     common = features.detach().cpu()
     rows: list[dict[str, Any]] = []
     for index, condition_id in enumerate(cpu_batch.condition_ids):
-        side = int(tensors["side"][index].item())
+        side = int(tensors["side_code"][index].item())
         outcome_side = (
             float(cpu_batch.outcome_up[index].item())
             if side == 0
@@ -776,8 +796,13 @@ def _render_variant(path: Path, result: VariantResult, config: RegimeConfig) -> 
         [row["outcome_side"] for row in filled], dtype=torch.float64
     )
     side_up = torch.tensor([row["side"] == "UP" for row in filled], dtype=torch.float64)
+    chainlink_column = (
+        "chainlink_lagged_return_market"
+        if result.variant == "m6_chainlink_regime_decay_lagged"
+        else "chainlink_return_market"
+    )
     chainlink_return = torch.tensor(
-        [row["chainlink_return_market"] for row in filled], dtype=torch.float64
+        [row[chainlink_column] for row in filled], dtype=torch.float64
     )
     figure = make_subplots(
         rows=4,
@@ -982,27 +1007,30 @@ def _run_variant(
             probability_up = fine.probability_up[states]
             model_record["terminal_bins"] = int(fine.probability_up.numel())
         elif variant not in {"m0_coarse_lookup_10c", "m1_fine_lookup_2c"}:
-            count = _feature_count(variant)
+            columns = _feature_columns(variant)
+            column_index = torch.tensor(columns, dtype=torch.int64, device=device)
             weights = torch.ones(len(train), dtype=torch.float64, device=device)
             if variant != "m2_continuous_price":
                 weights = _recency_weights(
                     train, fold.train_end_exclusive_s, config.decay_half_life_days
                 )
             logistic = fit_logistic_model(
-                train_features[:, :count],
+                train_features.index_select(1, column_index),
                 train.outcome_up,
                 weights,
                 ridge=config.logistic_ridge,
                 maximum_iterations=config.logistic_max_iterations,
             )
             probability_up = torch.clamp(
-                predict_logistic(logistic, validation_features[:, :count]),
+                predict_logistic(
+                    logistic, validation_features.index_select(1, column_index)
+                ),
                 config.minimum_probability,
                 config.maximum_probability,
             )
             model_record.update(
                 {
-                    "feature_names": list(feature_names[:count]),
+                    "feature_names": [feature_names[index] for index in columns],
                     "mean": logistic.mean.detach().cpu().tolist(),
                     "scale": logistic.scale.detach().cpu().tolist(),
                     "coefficients": logistic.coefficients.detach().cpu().tolist(),
@@ -1037,7 +1065,9 @@ def _selection(results: list[VariantResult], config: RegimeConfig) -> dict[str, 
     candidates: list[dict[str, Any]] = []
     for result in results[1:]:
         summary = result.summary
+        timing_valid = result.variant != "m5_chainlink_regime_decay_timestamped_invalid"
         gates = {
+            "causal_timing_valid": timing_valid,
             "relative_fills": summary["fills"]
             >= config.minimum_relative_fills * baseline["fills"],
             "positive_folds": summary["positive_folds"]
@@ -1116,8 +1146,11 @@ def run_stage4e_development(
     chainlink, chainlink_provenance = load_polymarket_chainlink_series(
         config.chainlink_config, data_root
     )
-    chainlink_matrix = chainlink_features(batch, chainlink)
-    features, feature_names = common_features(batch, chainlink_matrix)
+    chainlink_timestamped = chainlink_features(batch, chainlink)
+    chainlink_lagged = chainlink_features(batch, chainlink, causal_lag_seconds=60)
+    features, feature_names = common_features(
+        batch, chainlink_timestamped, chainlink_lagged
+    )
     if not bool(torch.isfinite(features).all().item()):
         raise RegimeModelError("Stage 4e causal feature matrix is not finite")
     run_dir = Path(output_root) / (

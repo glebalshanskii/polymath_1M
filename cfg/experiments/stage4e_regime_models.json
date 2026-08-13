@@ -22,7 +22,8 @@
     "m2_continuous_price",
     "m3_continuous_price_decay",
     "m4_microstructure_decay",
-    "m5_chainlink_regime_decay"
+    "m5_chainlink_regime_decay_timestamped_invalid",
+    "m6_chainlink_regime_decay_lagged"
   ],
   "coarse_price_bin_width": 0.10,
   "fine_price_bin_width": 0.02,
