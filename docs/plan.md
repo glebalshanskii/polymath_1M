@@ -2,10 +2,9 @@
 
 - Обновлено: 2026-08-13
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Этап 4e завершён; M6 отклонена на early robustness и
-  one-shot holdout; 24-hour Stage 2 validation идёт параллельно**
-- Следующий deliverable: Stage 4f stable-shrinkage protocol и новый
-  prospective confirmation horizon; Stage 5 пока не разрешён
+- Текущий этап: **Stage 4f literal Markov отклонён; Stage 4g terminal Markov
+  protocol зафиксирован до implementation/run**
+- Следующий deliverable: Stage 4g development result; Stage 5 пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -392,11 +391,14 @@ prospective paper trading.
 
 ### Следующий practical шаг: Stage 4g absorbing-terminal Markov
 
-Новый development contract должен строить causal finite-horizon chain с
-terminal `UP/DOWN` absorbing states, чтобы $P^h$ оценивала именно payout к
-resolution и была сопоставима с ask после fees. State/time discretization,
-regularization и model refresh фиксируются до run. Уже открытый May holdout —
-только diagnostic; подтверждение требует нового prospective horizon.
+Protocol зафиксирован: terminal forecast строится как market-anchored residual
+для текущего price state и для пары `previous -> current`; `WIN/LOSE` являются
+absorbing states. С ask сравнивается terminal payout после fee и execution
+haircut, а article persistence `>=0.87` остаётся отдельным stability filter.
+State grid, regularization, support, entry и execution rules зафиксированы в
+[Stage 4g protocol](protocols/screening/0007_stage4g_terminal_markov.md) и
+[config](../cfg/experiments/stage4g_terminal_markov.json). Уже открытый May
+holdout — только diagnostic; подтверждение требует нового prospective horizon.
 
 ## Этап 5. Prospective paper trading
 
