@@ -2,10 +2,10 @@
 
 - Обновлено: 2026-08-13
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Этап 4c завершён `inconclusive_no_candidate`; holdout не
+- Текущий этап: **Этап 4d завершён `selected_on_development`; holdout не
   открыт; 24-hour Stage 2 validation идёт параллельно**
-- Следующий deliverable: Stage 4d с более гладкой probability/policy model и
-  заранее зафиксированной plateau stability; Stage 5 пока не разрешён
+- Следующий deliverable: отдельный frozen one-shot holdout contract только
+  после явного разрешения; Stage 5 пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -285,15 +285,36 @@ prospective paper trading.
 [ADR-0008](adr/0008-stage4c-walkforward-result.md) и
 [frozen protocol](protocols/screening/0003_stage4c_walkforward.md).
 
-### Следующий practical шаг: Stage 4d
+### Stage 4d: uniform-grid plateau calibration
 
-Не ослаблять neighbour gate и не открывать holdout для увиденного SOL cell.
-На development сравнить текущий ступенчатый lookup с одной заранее выбранной
-сглаженной probability calibration либо plateau/ensemble policy. До запуска
-зафиксировать model, selection rule и acceptance. Если новый candidate пройдёт
-development gate, закоммитить его и один раз открыть всё ещё не использованный
-`[2026-05-14, 2026-05-18)` holdout. Только historical pass допускается в
-Stage 5 full-L2 paper trading.
+Статус: **completed 2026-08-13; `selected_on_development`; holdout unopened**.
+
+- Новый protocol до запуска заменил неравномерные train quantiles равномерными
+  absolute steps и arbitrary 50% worst-neighbour veto — медианой локального
+  plateau. Exposure, PF, positive-fold и same-trade stress gates сохранены.
+- Проверено 188,190 cells: 37,638 для каждой из пяти 5m families. Eligible:
+  BTC 74, SOL 27, pooled 38, ETH/XRP 0.
+- Выбран BTC 5m: ask `[0.60, 0.85]`, edge ≥0.01, persistence ≥0.14,
+  support ≥1. На четырёх development folds: 235 fills, `+168.60 USDC`, PF
+  `1.305`, 4/4 positive folds; same-trade 2¢ stress `+136.40`, 3/4 folds.
+- Все девять members локального plateau прибыльны pooled в primary и stress;
+  primary range `+64.74…+170.82`, median `+130.88`, stress median `+89.08`.
+- Modeled entry turnover `2,235.11 USDC`, net return on turnover `7.54%`.
+  Это сумма последовательных входов, не одновременно вложенный капитал.
+- Loader прочитал 25,344 development и 0 holdout rows; canonical run record
+  фиксирует `holdout_opened = false`.
+
+Подробности: [Stage 4d report](reports/murtazin_uniform_plateau_stage4d.md),
+[ADR-0009](adr/0009-stage4d-uniform-plateau-result.md) и
+[frozen protocol](protocols/screening/0004_stage4d_uniform_plateau.md).
+
+### Следующий practical шаг: frozen holdout contract
+
+Параметры BTC candidate больше не менять на текущем dataset. По прямому
+указанию holdout `[2026-05-14, 2026-05-18)` остаётся закрытым. Его возможный
+one-shot запуск — отдельная задача: сначала committed config с hashes и
+acceptance, затем self-review, и только после явного разрешения один запуск.
+Только historical pass допускается в Stage 5 full-L2 paper trading.
 
 ## Этап 5. Prospective paper trading
 
