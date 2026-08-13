@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.request import Request, urlopen
 
 import duckdb
 import pyarrow as pa
@@ -35,6 +36,26 @@ def _sha256(path: Path) -> str:
         while chunk := stream.read(1024 * 1024):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _remote_metadata(url: str) -> dict[str, Any]:
+    request = Request(url, method="HEAD", headers={"User-Agent": "polymath-1m/1"})
+    error: Exception | None = None
+    for attempt in range(3):
+        try:
+            with urlopen(request, timeout=30) as response:
+                return {
+                    "url": url,
+                    "status": response.status,
+                    "bytes": int(response.headers.get("Content-Length", 0)),
+                    "etag": response.headers.get("ETag"),
+                    "last_modified": response.headers.get("Last-Modified"),
+                }
+        except OSError as exc:
+            error = exc
+            if attempt < 2:
+                time.sleep(attempt + 1)
+    raise ScreeningDatasetError(f"PMXT HEAD failed for {url}: {error}")
 
 
 def _invalid_row(market: dict[str, Any], reason: str) -> dict[str, Any]:
@@ -330,6 +351,13 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
     for item in inventory:
         for reason, count in item["reason_counts"].items():
             reason_counts[reason] += int(count)
+    with ThreadPoolExecutor(max_workers=config.pmxt_workers) as executor:
+        source_inventory = list(
+            executor.map(
+                _remote_metadata,
+                [str(item["source_url"]) for item in inventory],
+            )
+        )
     manifest = {
         "schema_version": 1,
         "experiment_id": config.experiment_id,
@@ -341,6 +369,7 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
         "market_count": len(markets),
         "valid_count": sum(int(item["valid_count"]) for item in inventory),
         "reason_counts": dict(sorted(reason_counts.items())),
+        "source_inventory": source_inventory,
         "hours": inventory,
     }
     manifest_path = root / "pmxt_dataset_manifest.json"
