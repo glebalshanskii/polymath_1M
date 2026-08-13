@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 import torch
@@ -98,7 +99,7 @@ def _load_rows(config: ScreeningConfig) -> tuple[list[dict[str, Any]], dict[str,
 
 
 def _strategy_data(
-    rows: list[dict[str, Any]], strategy: StrategyConfig
+    rows: list[dict[str, Any]], strategy: StrategyConfig, config: ScreeningConfig
 ) -> ScreeningData:
     selected = [
         row
@@ -144,8 +145,8 @@ def _strategy_data(
     market_end = torch.tensor(
         [int(row["market_end_ms"]) // 1_000 for row in selected], dtype=torch.int64
     )
-    previous = market_end - 120
-    decision = market_end - 60
+    decision = market_end - config.decision_seconds_before_end
+    previous = decision - config.transition_horizon_seconds
     current_mid = torch.stack(
         (floats("signal_mid_up"), floats("signal_mid_down")), dim=1
     )
@@ -417,7 +418,7 @@ def run_stage4_screening(
     fitted: dict[str, tuple[StrategyConfig, LookupModel, dict[str, ScreeningData]]] = {}
     for strategy_path in config.strategy_configs:
         strategy = load_strategy_config(strategy_path)
-        data = _strategy_data(rows, strategy)
+        data = _strategy_data(rows, strategy, config)
         indices = chronological_market_splits(
             data.batch.market_start_s, config.train_fraction, config.validation_fraction
         )
@@ -548,6 +549,20 @@ def run_stage4_screening(
             run_dir / "test_decisions.parquet",
             compression="zstd",
         )
+    models = {
+        strategy_id: {
+            "edges": model.edges.detach().cpu().tolist(),
+            "probability_up": model.probability_up.detach().cpu().tolist(),
+            "support": model.support.detach().cpu().tolist(),
+            "transition_matrix": model.transition_matrix.detach().cpu().tolist(),
+            "persistence": model.persistence.detach().cpu().tolist(),
+            "prior_up": float(model.prior_up.detach().cpu().item()),
+        }
+        for strategy_id, (_, model, _) in fitted.items()
+    }
+    _write_json(run_dir / "models.json", models)
+    effective_config = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    _write_json(run_dir / "effective_config.json", effective_config)
     result = {
         "schema_version": 1,
         "experiment_id": config.experiment_id,
@@ -578,9 +593,15 @@ def run_stage4_screening(
         "device": str(device),
         "dtype": config.dtype,
         "torch_version": torch.__version__,
+        "duckdb_version": duckdb.__version__,
+        "pyarrow_version": pa.__version__,
         "cuda_version": torch.version.cuda,
         "gpu": torch.cuda.get_device_name(device) if device.type == "cuda" else None,
         "python": platform.python_version(),
+        "strategy_configs": [
+            {"path": path, "sha256": _sha256(Path(path))}
+            for path in config.strategy_configs
+        ],
     }
     _write_json(run_dir / "run_record.json", record)
     return run_dir
