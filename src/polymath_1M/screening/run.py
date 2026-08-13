@@ -574,6 +574,9 @@ def run_stage4_screening(
         "test_evaluations": evaluations_payload,
     }
     _write_json(run_dir / "result.json", result)
+    artifact_names = ["effective_config.json", "models.json", "result.json"]
+    if (run_dir / "test_decisions.parquet").is_file():
+        artifact_names.append("test_decisions.parquet")
     record = {
         "schema_version": 1,
         "experiment_id": config.experiment_id,
@@ -601,6 +604,14 @@ def run_stage4_screening(
         "strategy_configs": [
             {"path": path, "sha256": _sha256(Path(path))}
             for path in config.strategy_configs
+        ],
+        "artifacts": [
+            {
+                "path": name,
+                "bytes": (run_dir / name).stat().st_size,
+                "sha256": _sha256(run_dir / name),
+            }
+            for name in artifact_names
         ],
     }
     _write_json(run_dir / "run_record.json", record)
