@@ -95,3 +95,22 @@ selection; их thresholds нельзя менять после просмотр
 даёт ноль сделок, следующий practical experiment может менять state
 representation, но обязан сохранить этот отрицательный результат и получить
 новый ID; снижать `tau` внутри Stage 4f запрещено.
+
+## Amendment 2026-08-13: dynamic FAK limit
+
+Self-review первого run обнаружил, что implementation ограничивал execution
+depth только source `maximum_ask`. Это шире цены, сохраняющей заявленный gap,
+и могло разрешить adverse move между decision и arrival. Первый run остаётся
+diagnostic и не используется как canonical result.
+
+Signal formula, states, thresholds, folds и source data не меняются. Для
+canonical rerun заранее исправляется только order contract:
+
+$$
+q^{limit}_d=\min(q_{max},\widehat p_d-\varepsilon).
+$$
+
+Для строгого `gap > epsilon` используется ближайшее representable значение
+ниже границы. FAK может брать только levels `<= q_limit`; отсутствие такой
+ликвидности даёт `signal_without_fill`. После изменения обязателен clean-commit
+rerun и обновление provenance/hashes.

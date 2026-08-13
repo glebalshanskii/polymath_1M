@@ -150,6 +150,37 @@ class LiteralMarkovTest(unittest.TestCase):
         self.assertAlmostEqual(result.gap.item(), 0.10)
         self.assertAlmostEqual(result.funnel["maximum_gap_after_ask"], 0.10)
 
+    def test_fak_does_not_walk_beyond_source_gap_limit(self) -> None:
+        batch = self._batch(previous_up=(0.10,), current_up=(0.10,))
+        batch.asks[0] = torch.tensor([0.80, 0.95], dtype=torch.float64)
+        batch.ask_depth_prices[0, 0, 0] = 0.86
+        edges = torch.tensor([0.0, 0.5, 1.000001], dtype=torch.float64)
+        matrix = torch.tensor([[0.90, 0.10], [0.10, 0.90]], dtype=torch.float64)
+        model = TransitionModel(
+            edges=edges,
+            counts=torch.tensor([[9, 1], [1, 9]], dtype=torch.int64),
+            row_support=torch.tensor([10, 10], dtype=torch.int64),
+            matrix=matrix,
+            destination=torch.tensor([0, 1], dtype=torch.int64),
+            maximum_probability=torch.tensor([0.90, 0.90], dtype=torch.float64),
+            destination_persistence=torch.tensor([0.90, 0.90]),
+        )
+        result = evaluate_literal_markov(
+            batch,
+            model,
+            self._variant(tau=0.87),
+            minimum_row_transitions=1,
+            target_notional_usdc=10.0,
+            fee_rate=0.0,
+            fee_exponent=1.0,
+            fee_round_decimals=4,
+            primary_extra_cost_per_share=0.0,
+            stress_extra_cost_per_share=0.0,
+        )
+        self.assertTrue(result.signal.item())
+        self.assertAlmostEqual(result.worst_price_limit.item(), 0.85)
+        self.assertFalse(result.filled.item())
+
     @staticmethod
     def _variant(
         *, tau: float, operator: str = "greater_equal", gap: float = 0.05
@@ -188,7 +219,7 @@ class LiteralMarkovTest(unittest.TestCase):
             current_mid=torch.stack((current, 1 - current), dim=1),
             bids=asks - 0.01,
             asks=asks,
-            ask_depth_prices=asks.unsqueeze(2),
+            ask_depth_prices=asks.unsqueeze(2).clone(),
             ask_depth_sizes=torch.full((count, 2, 1), 20.0, dtype=torch.float64),
             snapshot_valid=torch.ones(count, dtype=torch.bool),
             label_source="unit_test",

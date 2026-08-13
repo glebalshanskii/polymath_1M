@@ -97,7 +97,7 @@ Fees и особенно 1¢/share haircut увеличивают потери �
 ## Artifacts и reproducibility
 
 Run:
-`outputs/literal_markov/20260813T145556Z_stage4f_literal_markov_btc5m_20260221_20260514/`
+`outputs/literal_markov/20260813T145940Z_stage4f_literal_markov_btc5m_20260221_20260514/`
 
 Главные файлы:
 
@@ -112,19 +112,19 @@ Hashes:
 
 | Artifact | SHA-256 |
 |---|---|
-| `result.json` | `8b23c7318078e322cda4e370bfbff5af84cbc40e0cc8f2a96a39903573445319` |
-| `run_record.json` | `2fe72a9f8426b4366b3e2141903788319a1e7161088851b0edeb44c8c321db9d` |
-| Kacho matrices HTML | `14862d7bedfeb5038c3cd3b13484190ce6e1117dc794f45d776bcdf58784c139` |
-| Trent matrices HTML | `d0b658f0b06e982124dad1ee2a313a1a2bbbf6dd52b3a4d4045c5b289bb74f78` |
+| `result.json` | `2b6eaac619ceb2c3e7a0e25df2be98fca48bfe38b3ff03c78fb319dac6319325` |
+| `run_record.json` | `2098305989638181b7a0a69f72aa39399616afd9dc84cee0cde5dcee4a9ccdc5` |
+| Kacho matrices HTML | `562a6a2f5df9626dbaa6e41d9303b35989abe9bd4163d87f1b3c53b22d0be69a` |
+| Trent matrices HTML | `d2ef5c9916b00af846857fc55c412512d0f053ea4919661668e5f146ad1a495a` |
 
-- Code commit: `38af0c703b15a41bb58202fa67f96604e411c01a`;
+- Code commit: `72b050c7b2f35cd9228ad1c8611db6f085f4f6d2`;
 - canonical config SHA-256:
   `4175758c4c10c26ae454abdc8d531679469b14764fd35b57ded476f4377ec04c`;
 - config file SHA-256:
   `17213fd39c2dda280c7e8a77b6d8136770eead4899640434690c3050b0d146e8`;
 - seed `20260813`, `torch 2.13.0+cu130`, CUDA 13.0, float64;
 - GPU: NVIDIA GeForce RTX 3080 Ti Laptop GPU;
-- runtime: 19.43 seconds;
+- runtime: 16.19 seconds;
 - `source_dirty=false`, `selection_performed=false`, `holdout_opened=false`.
 
 ## Вывод и следующий вариант

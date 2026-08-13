@@ -91,6 +91,7 @@ class LiteralEvaluation:
     destination_persistence: torch.Tensor
     signal_ask: torch.Tensor
     gap: torch.Tensor
+    worst_price_limit: torch.Tensor
     side: torch.Tensor
     signal: torch.Tensor
     fill_vwap: torch.Tensor
@@ -393,10 +394,16 @@ def evaluate_literal_markov(
     depth_sizes = torch.nan_to_num(
         batch.ask_depth_sizes, nan=0.0, posinf=0.0, neginf=0.0
     )
+    raw_limit = probability - variant.minimum_gap
+    if variant.gap_operator == "greater":
+        raw_limit = torch.nextafter(raw_limit, torch.full_like(raw_limit, -torch.inf))
+    side_limit = torch.minimum(
+        raw_limit, torch.full_like(raw_limit, variant.maximum_ask)
+    )
     usable = (
         torch.isfinite(depth_prices)
         & (depth_prices > 0)
-        & (depth_prices <= variant.maximum_ask)
+        & (depth_prices <= side_limit.unsqueeze(2))
         & (depth_sizes > 0)
     )
     prices = torch.where(usable, depth_prices, torch.ones_like(depth_prices))
@@ -460,6 +467,7 @@ def evaluate_literal_markov(
         destination_persistence=chosen(persistence),
         signal_ask=chosen(asks),
         gap=chosen(gap),
+        worst_price_limit=chosen(side_limit),
         side=side,
         signal=signal,
         fill_vwap=chosen_vwap,
@@ -504,6 +512,7 @@ def _decision_rows(
         "destination_persistence": evaluation.destination_persistence.detach().cpu(),
         "signal_ask": evaluation.signal_ask.detach().cpu(),
         "gap": evaluation.gap.detach().cpu(),
+        "worst_price_limit": evaluation.worst_price_limit.detach().cpu(),
         "side_code": evaluation.side.detach().cpu(),
         "signal": evaluation.signal.detach().cpu(),
         "fill_vwap": evaluation.fill_vwap.detach().cpu(),
