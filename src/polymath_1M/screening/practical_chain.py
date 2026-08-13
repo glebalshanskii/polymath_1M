@@ -978,116 +978,136 @@ def _orders(
     return decisions, order_rows
 
 
-DEPTH_QUERY = """
-WITH raw AS MATERIALIZED (
-    SELECT
-        row_number() OVER () AS source_row,
-        market,
-        asset_id,
-        event_type,
-        epoch_ms(timestamp_received) AS receive_timestamp_ms,
-        epoch_ms(timestamp) AS source_timestamp_ms,
-        bids,
-        asks,
-        CAST(price AS DOUBLE) AS price,
-        CAST(size AS DOUBLE) AS size,
-        side
-    FROM read_parquet(?)
-    WHERE event_type IN ('book', 'price_change')
-),
-snapshots AS (
+SNAPSHOT_QUERY = """
+WITH snapshots AS (
     SELECT
         r.condition_id,
         r.variant,
         r.asset_id,
         r.arrival_ms,
-        p.receive_timestamp_ms AS snapshot_receive_ms,
-        p.source_timestamp_ms AS snapshot_source_ms,
-        p.source_row AS snapshot_source_row,
+        epoch_ms(p.timestamp_received) AS snapshot_receive_ms,
+        epoch_ms(p.timestamp) AS snapshot_source_ms,
+        p.file_row_number AS snapshot_source_row,
         p.asset_id AS snapshot_asset_id,
         p.asset_id = r.asset_id AS is_direct,
         CASE WHEN p.asset_id = r.asset_id THEN p.asks ELSE p.bids END AS levels
     FROM requested_execution AS r
-    JOIN raw AS p
+    JOIN read_parquet(?, file_row_number=true) AS p
       ON p.market = r.market
      AND p.asset_id IN (r.asset_id, r.other_asset_id)
-    WHERE p.event_type = 'book' AND p.receive_timestamp_ms <= r.arrival_ms
+    WHERE p.event_type = 'book'
+      AND epoch_ms(p.timestamp_received) <= r.arrival_ms
     QUALIFY row_number() OVER (
         PARTITION BY r.condition_id, r.variant
         ORDER BY (p.asset_id = r.asset_id) DESC,
-                 p.receive_timestamp_ms DESC, p.source_timestamp_ms DESC,
-                 p.source_row DESC
+                 p.timestamp_received DESC, p.timestamp DESC,
+                 p.file_row_number DESC
     ) = 1
-),
-snapshot_levels AS (
-    SELECT
-        s.condition_id,
-        s.variant,
-        s.asset_id,
-        s.arrival_ms,
-        CASE WHEN s.is_direct
-             THEN CAST(json_extract(level.value, '$[0]') AS DOUBLE)
-             ELSE 1 - CAST(json_extract(level.value, '$[0]') AS DOUBLE)
-        END AS price,
-        CAST(json_extract(level.value, '$[1]') AS DOUBLE) AS size
-    FROM snapshots AS s, json_each(s.levels) AS level
-),
-changes AS (
-    SELECT
-        s.condition_id,
-        s.variant,
-        CASE WHEN s.is_direct THEN p.price ELSE 1 - p.price END AS price,
-        arg_max(p.size, struct_pack(
-            r := p.receive_timestamp_ms,
-            s := p.source_timestamp_ms,
-            n := p.source_row
-        )) AS size
-    FROM snapshots AS s
-    JOIN raw AS p ON p.asset_id = s.snapshot_asset_id
-    WHERE p.event_type = 'price_change'
-      AND upper(p.side) = CASE WHEN s.is_direct THEN 'SELL' ELSE 'BUY' END
-      AND p.receive_timestamp_ms <= s.arrival_ms
-      AND struct_pack(
-          r := p.receive_timestamp_ms,
-          s := p.source_timestamp_ms,
-          n := p.source_row
-      ) > struct_pack(
-          r := s.snapshot_receive_ms,
-          s := s.snapshot_source_ms,
-          n := s.snapshot_source_row
-      )
-    GROUP BY s.condition_id, s.variant,
-             CASE WHEN s.is_direct THEN p.price ELSE 1 - p.price END
-),
-final_levels AS (
-    SELECT
-        l.condition_id,
-        l.variant,
-        l.price,
-        coalesce(c.size, l.size) AS size
-    FROM snapshot_levels AS l
-    LEFT JOIN changes AS c
-      ON l.condition_id = c.condition_id
-     AND l.variant = c.variant
-     AND l.price = c.price
-    UNION ALL
-    SELECT c.condition_id, c.variant, c.price, c.size
-    FROM changes AS c
-    LEFT JOIN snapshot_levels AS l
-      ON l.condition_id = c.condition_id
-     AND l.variant = c.variant
-     AND l.price = c.price
-    WHERE l.price IS NULL
 )
-SELECT
-    condition_id,
-    variant,
-    list(price ORDER BY price) FILTER (WHERE size > 0) AS ask_prices,
-    list(size ORDER BY price) FILTER (WHERE size > 0) AS ask_sizes
-FROM final_levels
-GROUP BY condition_id, variant
-ORDER BY condition_id, variant
+SELECT * FROM snapshots ORDER BY condition_id, variant
 """
+
+
+CHANGES_QUERY = """
+SELECT
+    s.condition_id,
+    s.variant,
+    CASE WHEN s.is_direct THEN CAST(p.price AS DOUBLE)
+         ELSE 1 - CAST(p.price AS DOUBLE)
+    END AS price,
+    arg_max(CAST(p.size AS DOUBLE), struct_pack(
+        r := epoch_ms(p.timestamp_received),
+        s := epoch_ms(p.timestamp),
+        n := p.file_row_number
+    )) AS size
+FROM snapshots_execution AS s
+JOIN read_parquet(?, file_row_number=true) AS p
+  ON p.asset_id = s.snapshot_asset_id
+WHERE p.event_type = 'price_change'
+  AND upper(p.side) = CASE WHEN s.is_direct THEN 'SELL' ELSE 'BUY' END
+  AND epoch_ms(p.timestamp_received) <= s.arrival_ms
+  AND struct_pack(
+      r := epoch_ms(p.timestamp_received),
+      s := epoch_ms(p.timestamp),
+      n := p.file_row_number
+  ) > struct_pack(
+      r := s.snapshot_receive_ms,
+      s := s.snapshot_source_ms,
+      n := s.snapshot_source_row
+  )
+GROUP BY s.condition_id, s.variant,
+         CASE WHEN s.is_direct THEN CAST(p.price AS DOUBLE)
+              ELSE 1 - CAST(p.price AS DOUBLE)
+         END
+ORDER BY condition_id, variant, price
+"""
+
+
+def _rebuild_depths(
+    snapshots: pa.Table, changes: pa.Table
+) -> dict[tuple[str, str], tuple[list[float], list[float]]]:
+    latest_changes: dict[tuple[str, str], dict[float, float]] = defaultdict(dict)
+    for row in changes.to_pylist():
+        latest_changes[(str(row["condition_id"]), str(row["variant"]))][
+            float(row["price"])
+        ] = float(row["size"])
+    result: dict[tuple[str, str], tuple[list[float], list[float]]] = {}
+    for row in snapshots.to_pylist():
+        key = (str(row["condition_id"]), str(row["variant"]))
+        levels: dict[float, float] = {}
+        decoded = json.loads(row["levels"] or "[]")
+        for price_raw, size_raw in decoded:
+            price = float(price_raw)
+            if not bool(row["is_direct"]):
+                price = 1 - price
+            levels[price] = float(size_raw)
+        levels.update(latest_changes.get(key, {}))
+        ordered = sorted((price, size) for price, size in levels.items() if size > 0)
+        result[key] = (
+            [item[0] for item in ordered],
+            [item[1] for item in ordered],
+        )
+    return result
+
+
+def _execution_cache_record(
+    output_path: Path,
+    metadata_path: Path,
+    hour: str,
+    orders: list[dict[str, Any]],
+    config: PracticalChainConfig,
+) -> dict[str, Any] | None:
+    if not output_path.is_file() or not metadata_path.is_file():
+        return None
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if (
+        metadata.get("config_sha256") == config.config_sha256
+        and metadata.get("hour") == hour
+        and metadata.get("order_count") == len(orders)
+        and metadata.get("orders_sha256") == _orders_sha256(orders)
+        and metadata.get("parquet_sha256") == _sha256(output_path)
+    ):
+        return metadata
+    return None
+
+
+def _orders_sha256(orders: list[dict[str, Any]]) -> str:
+    identity = [
+        {
+            "condition_id": order["condition_id"],
+            "variant": order["variant"],
+            "token_id": order["token_id"],
+            "other_token_id": order["other_token_id"],
+            "arrival_ms": order["arrival_ms"],
+        }
+        for order in sorted(
+            orders, key=lambda item: (item["condition_id"], item["variant"])
+        )
+    ]
+    canonical = json.dumps(
+        identity, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _execution_depth_hour(
@@ -1095,7 +1115,21 @@ def _execution_depth_hour(
     orders: list[dict[str, Any]],
     config: PracticalChainConfig,
 ) -> dict[tuple[str, str], tuple[list[float], list[float]]]:
+    cache_dir = Path(config.cache_root) / "execution_hours"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    output_path = cache_dir / f"hour={hour}.parquet"
+    metadata_path = cache_dir / f"hour={hour}.json"
+    if _execution_cache_record(output_path, metadata_path, hour, orders, config):
+        table = pq.read_table(output_path)
+        return {
+            (str(row["condition_id"]), str(row["variant"])): (
+                [float(value) for value in (row["ask_prices"] or [])],
+                [float(value) for value in (row["ask_sizes"] or [])],
+            )
+            for row in table.to_pylist()
+        }
     archive = load_pmxt_archive_config(config.pmxt_config)
+    source_url = archive.object_url(hour)
     requested = pa.Table.from_pylist(
         [
             {
@@ -1109,25 +1143,54 @@ def _execution_depth_hour(
             for order in orders
         ]
     )
-    connection = duckdb.connect()
-    temporary_dir = Path(".tmp") / "stage4h_execution" / hour.replace(":", "")
-    temporary_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        connection.execute("SET memory_limit='1GB'")
-        connection.execute("SET temp_directory=?", [str(temporary_dir)])
-        connection.register("requested_execution", requested)
-        table = connection.execute(
-            DEPTH_QUERY, [archive.object_url(hour)]
-        ).fetch_arrow_table()
-    finally:
-        connection.close()
-    return {
-        (str(row["condition_id"]), str(row["variant"])): (
-            [float(value) for value in (row["ask_prices"] or [])],
-            [float(value) for value in (row["ask_sizes"] or [])],
-        )
-        for row in table.to_pylist()
-    }
+    error: Exception | None = None
+    for attempt in range(8):
+        connection = duckdb.connect()
+        try:
+            connection.register("requested_execution", requested)
+            snapshots = connection.execute(
+                SNAPSHOT_QUERY, [source_url]
+            ).fetch_arrow_table()
+            connection.register("snapshots_execution", snapshots)
+            changes = connection.execute(CHANGES_QUERY, [source_url]).fetch_arrow_table()
+            break
+        except (duckdb.Error, OSError, RuntimeError) as exc:
+            error = exc
+            if attempt < 7:
+                time.sleep(min(30, 2**attempt))
+        finally:
+            connection.close()
+    else:
+        raise PracticalChainError(f"PMXT execution query failed for {hour}: {error}")
+    depths = _rebuild_depths(snapshots, changes)
+    rows = [
+        {
+            "condition_id": condition_id,
+            "variant": variant,
+            "ask_prices": values[0],
+            "ask_sizes": values[1],
+        }
+        for (condition_id, variant), values in sorted(depths.items())
+    ]
+    temporary = output_path.with_suffix(".parquet.part")
+    pq.write_table(pa.Table.from_pylist(rows), temporary, compression="zstd")
+    os.replace(temporary, output_path)
+    _write_json(
+        metadata_path,
+        {
+            "schema_version": 1,
+            "config_sha256": config.config_sha256,
+            "hour": hour,
+            "source_url": source_url,
+            "order_count": len(orders),
+            "orders_sha256": _orders_sha256(orders),
+            "depth_count": len(rows),
+            "snapshot_count": snapshots.num_rows,
+            "change_count": changes.num_rows,
+            "parquet_sha256": _sha256(output_path),
+        },
+    )
+    return depths
 
 
 def _fetch_execution_depths(
@@ -1137,18 +1200,35 @@ def _fetch_execution_depths(
     for order in orders:
         grouped[_hour_key(int(order["market_start_ms"]))].append(order)
     result: dict[tuple[str, str], tuple[list[float], list[float]]] = {}
-    print(f"Stage 4h execution replay: {len(orders)} orders / {len(grouped)} hours")
+    print(
+        f"Stage 4h execution replay: {len(orders)} orders / {len(grouped)} hours",
+        flush=True,
+    )
     with ThreadPoolExecutor(max_workers=config.pmxt_workers) as executor:
-        futures = {
-            executor.submit(_execution_depth_hour, hour, rows, config): hour
-            for hour, rows in grouped.items()
-        }
+        iterator = iter(sorted(grouped.items()))
+        futures = {}
+        for _ in range(config.pmxt_workers):
+            try:
+                hour, rows = next(iterator)
+            except StopIteration:
+                break
+            futures[executor.submit(_execution_depth_hour, hour, rows, config)] = hour
         completed = 0
-        for future in as_completed(futures):
+        while futures:
+            future = next(as_completed(futures))
             result.update(future.result())
+            del futures[future]
             completed += 1
-            if completed == 1 or completed % 24 == 0 or completed == len(futures):
-                print(f"Stage 4h execution progress: {completed}/{len(futures)}")
+            if completed == 1 or completed % 24 == 0 or completed == len(grouped):
+                print(
+                    f"Stage 4h execution progress: {completed}/{len(grouped)}",
+                    flush=True,
+                )
+            try:
+                hour, rows = next(iterator)
+            except StopIteration:
+                continue
+            futures[executor.submit(_execution_depth_hour, hour, rows, config)] = hour
     return result
 
 

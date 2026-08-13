@@ -8,6 +8,7 @@ import torch
 from polymath_1M.screening.practical_chain import (
     ChainDataset,
     _top_rows,
+    _rebuild_depths,
     apply_execution,
     evaluate_signals,
     fit_raw_chain,
@@ -183,6 +184,46 @@ class PracticalChainTest(unittest.TestCase):
         self.assertLessEqual(rows[0]["fill_cost"], 10.0)
         self.assertLessEqual(rows[0]["fill_vwap"], 0.78)
         self.assertGreater(rows[0]["primary_pnl"], 0)
+
+    def test_execution_depth_rebuilds_direct_and_complement_books(self) -> None:
+        snapshots = pa.Table.from_pylist(
+            [
+                {
+                    "condition_id": "direct",
+                    "variant": "practical_chain",
+                    "levels": '[["0.40","2"],["0.50","3"]]',
+                    "is_direct": True,
+                },
+                {
+                    "condition_id": "complement",
+                    "variant": "practical_chain",
+                    "levels": '[["0.60","4"],["0.50","5"]]',
+                    "is_direct": False,
+                },
+            ]
+        )
+        changes = pa.Table.from_pylist(
+            [
+                {
+                    "condition_id": "direct",
+                    "variant": "practical_chain",
+                    "price": 0.40,
+                    "size": 0.0,
+                },
+                {
+                    "condition_id": "complement",
+                    "variant": "practical_chain",
+                    "price": 0.40,
+                    "size": 7.0,
+                },
+            ]
+        )
+        depths = _rebuild_depths(snapshots, changes)
+        self.assertEqual(depths[("direct", "practical_chain")], ([0.5], [3.0]))
+        self.assertEqual(
+            depths[("complement", "practical_chain")],
+            ([0.4, 0.5], [7.0, 5.0]),
+        )
 
 
 if __name__ == "__main__":
