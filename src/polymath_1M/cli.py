@@ -17,6 +17,7 @@ from .historical.trent import download_trent_gamma_outcomes, download_trent_step
 from .screening.calibration import run_stage4b_calibration
 from .screening.capital_chart import run_stage4d_capital_chart
 from .screening.cost_sensitivity import run_stage4j_zero_cost
+from .screening.edge_diagnostics import run_stage4k_edge_diagnostic
 from .screening.holdout import run_stage4b_test
 from .screening.literal_markov import run_stage4f_literal_markov
 from .screening.openmarket import run_openmarket_sanity
@@ -505,6 +506,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/cost_sensitivity",
         help="ignored directory for Stage 4j diagnostics",
     )
+    edge_diagnostic = subparsers.add_parser(
+        "stage4k-edge-diagnostic",
+        help="diagnose PMXT edge and anti-edge on fixed Stage 4i fills",
+    )
+    edge_diagnostic.add_argument(
+        "--config",
+        default="cfg/experiments/stage4k_edge_anti_edge.json",
+        help="path to the frozen Stage 4k edge diagnostic config",
+    )
+    edge_diagnostic.add_argument(
+        "--output-root",
+        default="outputs/edge_diagnostics",
+        help="ignored directory for Stage 4k diagnostics",
+    )
     return parser
 
 
@@ -642,3 +657,5 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(run_stage4i_positive_retest(args.config, args.output_root))
     elif args.command == "stage4j-zero-cost":
         print(run_stage4j_zero_cost(args.config, args.output_root))
+    elif args.command == "stage4k-edge-diagnostic":
+        print(run_stage4k_edge_diagnostic(args.config, args.output_root))
