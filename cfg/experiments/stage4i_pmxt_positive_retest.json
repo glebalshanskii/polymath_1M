@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "experiment_id": "stage4i_pmxt_positive_retest_20260422_20260518",
+  "data_config": "cfg/experiments/stage4c_market_data.json",
+  "period_start": "2026-04-22T00:00:00Z",
+  "development_end_exclusive": "2026-05-14T00:00:00Z",
+  "test_end_exclusive": "2026-05-18T00:00:00Z",
+  "folds": [
+    {
+      "fold_id": "fold_1",
+      "train_start": "2026-04-22T00:00:00Z",
+      "train_end_exclusive": "2026-04-28T00:00:00Z",
+      "validation_start": "2026-04-28T00:00:00Z",
+      "validation_end_exclusive": "2026-05-02T00:00:00Z"
+    },
+    {
+      "fold_id": "fold_2",
+      "train_start": "2026-04-22T00:00:00Z",
+      "train_end_exclusive": "2026-05-02T00:00:00Z",
+      "validation_start": "2026-05-02T00:00:00Z",
+      "validation_end_exclusive": "2026-05-06T00:00:00Z"
+    },
+    {
+      "fold_id": "fold_3",
+      "train_start": "2026-04-22T00:00:00Z",
+      "train_end_exclusive": "2026-05-06T00:00:00Z",
+      "validation_start": "2026-05-06T00:00:00Z",
+      "validation_end_exclusive": "2026-05-10T00:00:00Z"
+    },
+    {
+      "fold_id": "fold_4",
+      "train_start": "2026-04-22T00:00:00Z",
+      "train_end_exclusive": "2026-05-10T00:00:00Z",
+      "validation_start": "2026-05-10T00:00:00Z",
+      "validation_end_exclusive": "2026-05-14T00:00:00Z"
+    }
+  ],
+  "configurations": [
+    {
+      "config_id": "c1_stage4b_pooled",
+      "mechanism": "coarse_lookup",
+      "assets": ["BTC", "ETH", "SOL", "XRP"],
+      "minimum_ask": 0.50,
+      "maximum_ask": 0.55,
+      "minimum_net_edge": 0.00,
+      "persistence_mode": "fixed",
+      "persistence_value": 0.10365853658536585,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 5
+    },
+    {
+      "config_id": "c2_stage4c_btc",
+      "mechanism": "coarse_lookup",
+      "assets": ["BTC"],
+      "minimum_ask": 0.55,
+      "maximum_ask": 0.85,
+      "minimum_net_edge": 0.01,
+      "persistence_mode": "train_quantile",
+      "persistence_value": 0.25,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 5
+    },
+    {
+      "config_id": "c3_stage4c_eth",
+      "mechanism": "coarse_lookup",
+      "assets": ["ETH"],
+      "minimum_ask": 0.55,
+      "maximum_ask": 0.70,
+      "minimum_net_edge": 0.00,
+      "persistence_mode": "train_quantile",
+      "persistence_value": 0.00,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 5
+    },
+    {
+      "config_id": "c4_stage4c_sol",
+      "mechanism": "coarse_lookup",
+      "assets": ["SOL"],
+      "minimum_ask": 0.55,
+      "maximum_ask": 0.99,
+      "minimum_net_edge": 0.02,
+      "persistence_mode": "train_quantile",
+      "persistence_value": 0.00,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 5
+    },
+    {
+      "config_id": "c5_stage4c_xrp",
+      "mechanism": "coarse_lookup",
+      "assets": ["XRP"],
+      "minimum_ask": 0.20,
+      "maximum_ask": 0.99,
+      "minimum_net_edge": 0.02,
+      "persistence_mode": "train_quantile",
+      "persistence_value": 0.75,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 5
+    },
+    {
+      "config_id": "c6_stage4c_pooled",
+      "mechanism": "coarse_lookup",
+      "assets": ["BTC", "ETH", "SOL", "XRP"],
+      "minimum_ask": 0.20,
+      "maximum_ask": 0.85,
+      "minimum_net_edge": 0.00,
+      "persistence_mode": "train_quantile",
+      "persistence_value": 0.50,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 5
+    },
+    {
+      "config_id": "c7_stage4d_btc_m0",
+      "mechanism": "coarse_lookup",
+      "assets": ["BTC"],
+      "minimum_ask": 0.60,
+      "maximum_ask": 0.85,
+      "minimum_net_edge": 0.01,
+      "persistence_mode": "fixed",
+      "persistence_value": 0.14,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 5
+    },
+    {
+      "config_id": "c8_stage4d_sol",
+      "mechanism": "coarse_lookup",
+      "assets": ["SOL"],
+      "minimum_ask": 0.55,
+      "maximum_ask": 0.95,
+      "minimum_net_edge": 0.02,
+      "persistence_mode": "fixed",
+      "persistence_value": 0.10,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 5
+    },
+    {
+      "config_id": "c9_stage4d_pooled",
+      "mechanism": "coarse_lookup",
+      "assets": ["BTC", "ETH", "SOL", "XRP"],
+      "minimum_ask": 0.25,
+      "maximum_ask": 0.90,
+      "minimum_net_edge": 0.00,
+      "persistence_mode": "fixed",
+      "persistence_value": 0.18,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 5
+    },
+    {
+      "config_id": "m2_continuous_price",
+      "mechanism": "continuous_price",
+      "assets": ["BTC"],
+      "minimum_ask": 0.60,
+      "maximum_ask": 0.85,
+      "minimum_net_edge": 0.01,
+      "persistence_mode": "fixed",
+      "persistence_value": 0.14,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 4
+    },
+    {
+      "config_id": "m3_continuous_price_decay",
+      "mechanism": "continuous_price_decay",
+      "assets": ["BTC"],
+      "minimum_ask": 0.60,
+      "maximum_ask": 0.85,
+      "minimum_net_edge": 0.01,
+      "persistence_mode": "fixed",
+      "persistence_value": 0.14,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 4
+    },
+    {
+      "config_id": "m4_microstructure_decay",
+      "mechanism": "microstructure_decay",
+      "assets": ["BTC"],
+      "minimum_ask": 0.60,
+      "maximum_ask": 0.85,
+      "minimum_net_edge": 0.01,
+      "persistence_mode": "fixed",
+      "persistence_value": 0.14,
+      "minimum_support": 1,
+      "platform_fee_round_decimals": 4
+    }
+  ],
+  "coarse_price_bin_width": 0.10,
+  "terminal_alpha": 20.0,
+  "transition_alpha": 1.0,
+  "target_notional_usdc": 10.0,
+  "primary_extra_cost_per_share": 0.01,
+  "stress_extra_cost_per_share": 0.02,
+  "decay_half_life_days": 7.0,
+  "logistic_ridge": 0.001,
+  "logistic_max_iterations": 30,
+  "minimum_probability": 0.01,
+  "maximum_probability": 0.99,
+  "minimum_asset_coverage": 0.99,
+  "minimum_test_fills": 50,
+  "seed": 20260813,
+  "device": "cuda",
+  "dtype": "float64"
+}

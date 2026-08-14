@@ -21,6 +21,7 @@ from .screening.literal_markov import run_stage4f_literal_markov
 from .screening.openmarket import run_openmarket_sanity
 from .screening.plateau import run_stage4d_calibration
 from .screening.pmxt_dataset import build_stage4_pmxt_dataset
+from .screening.positive_retest import run_stage4i_positive_retest
 from .screening.practical_chain import (
     build_practical_chain_cache,
     run_stage4h_practical_chain,
@@ -475,6 +476,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/practical_chain",
         help="ignored directory for Stage 4h diagnostics",
     )
+    positive_retest = subparsers.add_parser(
+        "stage4i-positive-retest",
+        help="retest every historically positive fixed model on PMXT v2",
+    )
+    positive_retest.add_argument(
+        "--config",
+        default="cfg/experiments/stage4i_pmxt_positive_retest.json",
+        help="path to the frozen Stage 4i PMXT retest config",
+    )
+    positive_retest.add_argument(
+        "--output-root",
+        default="outputs/positive_retest",
+        help="ignored directory for Stage 4i diagnostics",
+    )
     return parser
 
 
@@ -608,3 +623,5 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(build_practical_chain_cache(args.config))
     elif args.command == "stage4h-practical-chain":
         print(run_stage4h_practical_chain(args.config, args.output_root))
+    elif args.command == "stage4i-positive-retest":
+        print(run_stage4i_positive_retest(args.config, args.output_root))
