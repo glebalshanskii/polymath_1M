@@ -6,8 +6,10 @@
 - Config: `cfg/audits/murtazin_profiles.json`
 - Analysis commit: `fb775a83bb0dfc3758ef503918c878ab38cba05a`
 - Runtime: Python 3.14.0, PyTorch 2.13.0+cpu, CPU, `torch.float64`
-- Local run:
+- Historical local run:
   `outputs/profile_audit/20260812T163243Z_murtazin_profiles_2026_03_04/`
+- Artifact status: **permanently removed without archive on 2026-08-14**;
+  see [ADR-0021](../adr/0021-stage1-local-artifacts-removed.md)
 
 ## Что проверено
 
@@ -86,17 +88,23 @@ Sizing в MVP берётся из capacity/risk limits, а не копирует
 | `audit.sqlite3` | `edc450bfd1fdf6ab8bcb29d5746b20cb324b75abcd0f2c4cadc57f9b6bf8d322` |
 | `raw_inventory.json` | `71bb37cc470d6801737aba16438e59a2e887ebe0e149ee444295a9d17e88cb50` |
 
-Run занимает 53 GB и не коммитится. SHA-256 inventory покрывает все 64,570
-raw files; из-за рестартов ранней версии collector request URL/time metadata
-сохранились только для 13,378 unique files. Эти 51,192 files помечены
-`recovered_file_only`: bytes и hash доступны, request metadata — нет. Это
-не влияет на ledger completeness, но является provenance limitation.
-Повторное чтение всех raw bytes не нашло ни одного hash mismatch для files,
-у которых сохранился исходный manifest record.
+Во время анализа run занимал 53 GB. SHA-256 inventory покрывал все 64,570 raw
+files; из-за рестартов ранней версии collector request URL/time metadata были
+сохранены только для 13,378 unique files. Эти 51,192 files были помечены
+`recovered_file_only`: bytes и hash были доступны, request metadata — нет.
+Повторное чтение raw bytes тогда не нашло ни одного hash mismatch для files с
+исходным manifest record.
+
+2026-08-14 весь ignored run, включая raw JSON, `audit.sqlite3`, summaries и
+inventories, удалён без внешнего архива по решению владельца проекта. Хеши в
+таблице выше остаются historical provenance, но локально больше не
+проверяемы. Claim verdict и приведённые агрегаты не менялись; их независимая
+повторная проверка требует заново выгрузить публичные Polymarket API.
 
 ## Решение и следующий шаг
 
-Этап 1 закрыт: source-linked histories найдены, behavior constraints
+Этап 1 закрыт и выведен из дальнейшего pipeline: source-linked histories
+были найдены, behavior constraints
 извлечены, а unresolved B27 proxy mapping сохранён как limitation. Article
 numbers честно классифицированы как невоспроизводимые из public ledger.
 Полная on-chain реконструкция не нужна для решения о стратегии: чужой PnL всё
