@@ -36,6 +36,10 @@ source-replication: период уже рассматривался в стар
 - Arrival snapshot: `decision + 1s`, только данные с
   `timestamp_received <= arrival`.
 - FAK, один вход на condition, hold to resolution.
+- Для exact retest старых C1–M4 worst-price limit равен frozen
+  `maximum_ask` соответствующей configuration. Это не более поздний dynamic
+  edge-preserving limit: adverse move между decision и arrival до этой цены
+  может уменьшить фактический edge, но учитывается по arrival price в PnL.
 - Target notional: 10 USDC. Быстрый PMXT adapter использует causal best-ask
   hint в arrival и предполагает доступность 10 USDC на этом уровне: PMXT
   price проверяется, но реальный queue position и полный historical depth этим

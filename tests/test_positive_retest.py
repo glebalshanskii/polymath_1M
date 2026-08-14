@@ -24,6 +24,16 @@ class PositiveRetestTest(unittest.TestCase):
             EXPECTED_CONFIG_IDS,
         )
         self.assertEqual(len(config.folds), 4)
+        self.assertEqual(
+            config.data_config,
+            "cfg/experiments/stage4i_pmxt_market_data.json",
+        )
+        self.assertTrue(
+            all(
+                fold.train_end_exclusive_s == fold.validation_start_s
+                for fold in config.folds
+            )
+        )
         self.assertEqual(config.primary_extra_cost_per_share, 0.01)
         self.assertEqual(config.stress_extra_cost_per_share, 0.02)
 
