@@ -16,6 +16,7 @@ from .historical.polymarket_chainlink import (
 from .historical.trent import download_trent_gamma_outcomes, download_trent_steps
 from .screening.calibration import run_stage4b_calibration
 from .screening.capital_chart import run_stage4d_capital_chart
+from .screening.cost_sensitivity import run_stage4j_zero_cost
 from .screening.holdout import run_stage4b_test
 from .screening.literal_markov import run_stage4f_literal_markov
 from .screening.openmarket import run_openmarket_sanity
@@ -490,6 +491,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="outputs/positive_retest",
         help="ignored directory for Stage 4i diagnostics",
     )
+    zero_cost = subparsers.add_parser(
+        "stage4j-zero-cost",
+        help="revalue fixed Stage 4i fills without synthetic per-share costs",
+    )
+    zero_cost.add_argument(
+        "--config",
+        default="cfg/experiments/stage4j_zero_extra_cost.json",
+        help="path to the frozen Stage 4j cost-sensitivity config",
+    )
+    zero_cost.add_argument(
+        "--output-root",
+        default="outputs/cost_sensitivity",
+        help="ignored directory for Stage 4j diagnostics",
+    )
     return parser
 
 
@@ -625,3 +640,5 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(run_stage4h_practical_chain(args.config, args.output_root))
     elif args.command == "stage4i-positive-retest":
         print(run_stage4i_positive_retest(args.config, args.output_root))
+    elif args.command == "stage4j-zero-cost":
+        print(run_stage4j_zero_cost(args.config, args.output_root))
