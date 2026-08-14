@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "experiment_id": "stage4i_pmxt_positive_retest_20260422_20260518",
-  "data_config": "cfg/experiments/stage4c_market_data.json",
+  "data_config": "cfg/experiments/stage4i_pmxt_market_data.json",
   "period_start": "2026-04-22T00:00:00Z",
   "development_end_exclusive": "2026-05-14T00:00:00Z",
   "test_end_exclusive": "2026-05-18T00:00:00Z",
