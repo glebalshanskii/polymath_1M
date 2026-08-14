@@ -34,3 +34,8 @@ explicit = true
 
 [tool.ruff.lint]
 ignore = ["N999"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.3",
+]
