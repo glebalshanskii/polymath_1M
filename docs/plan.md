@@ -481,12 +481,20 @@ path-dependent correction на новом development/prospective horizon.
 - Self-review подтвердил chronology/uniqueness/ledger/stress invariants,
   PMXT-only provenance и SHA-256 всех 39 artifacts; Plotly comparison, BTC и
   SOL diagnostics отрендерены и просмотрены.
+- Post-hoc sensitivity снизила minimum final fills с 50 до 20 для
+  четырёхдневного interval. Gate дополнительно прошли C2, C3, C5 и C7, но все
+  они провалили другие development/final/stress requirements; итог остаётся
+  `0/12 replicated`. Поскольку threshold влияет только на verdict, canonical
+  операция — deterministic re-evaluation готового result, без повторного
+  fit/backtest. Отдельный full-pipeline control подтвердил равенство метрик.
 
 Подробности:
 [Stage 4i report](reports/murtazin_pmxt_positive_retest_stage4i.md),
 [ADR-0018](adr/0018-stage4i-pmxt-positive-retest-rejected.md),
+[ADR-0019](adr/0019-stage4i-four-day-minimum-fills.md),
 [protocol](protocols/screening/0009_stage4i_pmxt_positive_retest.md) и
-[config](../cfg/experiments/stage4i_pmxt_positive_retest.json).
+[original config](../cfg/experiments/stage4i_pmxt_positive_retest.json),
+[minimum-20 config](../cfg/experiments/stage4i_pmxt_positive_retest_min20.json).
 
 ## Этап 5. Prospective paper trading
 
