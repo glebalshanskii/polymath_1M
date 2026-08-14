@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "experiment_id": "stage4j_same_fill_zero_extra_cost",
+  "source_run_dir": "outputs/positive_retest/20260814T134107Z_stage4i_pmxt_positive_retest_min20_20260422_20260518",
+  "source_result_sha256": "3f76757169c0e69137ed6a0bf9ac9daf860b39d1b1724e661b03470c68cef41a",
+  "source_artifact_manifest_sha256": "5d77160cde2628be9c0cedefe27a5b195c7bf3244661937bcdc749c135cdd9c1",
+  "source_experiment_id": "stage4i_pmxt_positive_retest_min20_20260422_20260518",
+  "configuration_ids": [
+    "c1_stage4b_pooled",
+    "c2_stage4c_btc",
+    "c3_stage4c_eth",
+    "c4_stage4c_sol",
+    "c5_stage4c_xrp",
+    "c6_stage4c_pooled",
+    "c7_stage4d_btc_m0",
+    "c8_stage4d_sol",
+    "c9_stage4d_pooled",
+    "m2_continuous_price",
+    "m3_continuous_price_decay",
+    "m4_microstructure_decay"
+  ],
+  "minimum_final_fills": 20,
+  "extra_cost_per_share": 0.0,
+  "preserve_platform_fee": true,
+  "preserve_signals_and_fills": true
+}

@@ -25,6 +25,10 @@ terminal Markov модель Stage 4g устранила ложный longshot e
 fills, но отклонена из-за большого убытка и coarse-state selection bias.
 Повторная проверка 12 прежних positive-development configurations на одном
 PMXT-only периоде Stage 4i не воспроизвела ни одного paper candidate.
+Stage 4j показал, что часть отказов объясняется assumed per-share costs:
+без искусственной надбавки, но с Gamma fee, 10/12 configurations имеют
+положительный Development или Final point result; это post-hoc upper bound,
+а не разрешение live.
 
 - [Ответы по площадке, профилям и моделям](docs/reports/murtazin_strategy_reconstruction.md)
 - [Практический план](docs/plan.md)
@@ -141,6 +145,14 @@ development PnL, но потеряли `15.11 USDC` на final; небольшо
 лучше current midpoint. Итог — `0/12 replicated`, paper/live по-прежнему не
 разрешён. Детали — в
 [Stage 4i report](docs/reports/murtazin_pmxt_positive_retest_stage4i.md).
+
+Этап 4j детерминированно переоценил те же fills без искусственных
+`1¢/share` primary и `2¢/share` stress costs, сохранив Gamma fee. C3/C4/C5/C8
+положительны на четырёхдневном Final при 0¢ extra cost; C2/C7/C9 остаются
+отрицательными даже в этом сценарии. Literal result — 10/12 positive,
+stability-aware — 9/12. Теперь 0¢/1¢/2¢ публикуются как разные cost scenarios;
+фактическую execution cost нужно измерить prospectively. Детали — в
+[Stage 4j report](docs/reports/murtazin_zero_extra_cost_stage4j.md).
 
 Запуск аудита:
 
