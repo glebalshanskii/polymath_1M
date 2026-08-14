@@ -111,6 +111,11 @@ EXPECTED_CONFIG_IDS = (
     "m4_microstructure_decay",
 )
 
+EXPECTED_MINIMUM_TEST_FILLS = {
+    "stage4i_pmxt_positive_retest_20260422_20260518": 50,
+    "stage4i_pmxt_positive_retest_min20_20260422_20260518": 20,
+}
+
 
 def _sha256(path: str | Path) -> str:
     digest = hashlib.sha256()
@@ -325,6 +330,9 @@ def load_positive_retest_config(path: str | Path) -> PositiveRetestConfig:
         dtype=str(payload["dtype"]),
         config_sha256=hashlib.sha256(canonical).hexdigest(),
     )
+    expected_minimum_test_fills = EXPECTED_MINIMUM_TEST_FILLS.get(config.experiment_id)
+    if expected_minimum_test_fills is None:
+        raise PositiveRetestError("unknown Stage 4i experiment_id")
     if (
         config.coarse_price_bin_width != 0.10
         or config.terminal_alpha != 20.0
@@ -338,7 +346,7 @@ def load_positive_retest_config(path: str | Path) -> PositiveRetestConfig:
         or config.minimum_probability != 0.01
         or config.maximum_probability != 0.99
         or config.minimum_asset_coverage != 0.99
-        or config.minimum_test_fills != 50
+        or config.minimum_test_fills != expected_minimum_test_fills
         or config.seed != 20260813
         or config.device != "cuda"
         or config.dtype != "float64"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import asdict
 
 import torch
 
@@ -37,6 +38,28 @@ class PositiveRetestTest(unittest.TestCase):
         )
         self.assertEqual(config.primary_extra_cost_per_share, 0.01)
         self.assertEqual(config.stress_extra_cost_per_share, 0.02)
+        self.assertEqual(config.minimum_test_fills, 50)
+
+    def test_min20_sensitivity_changes_only_declared_gate(self) -> None:
+        original = asdict(
+            load_positive_retest_config(
+                "cfg/experiments/stage4i_pmxt_positive_retest.json"
+            )
+        )
+        sensitivity = asdict(
+            load_positive_retest_config(
+                "cfg/experiments/stage4i_pmxt_positive_retest_min20.json"
+            )
+        )
+        self.assertEqual(original.pop("minimum_test_fills"), 50)
+        self.assertEqual(sensitivity.pop("minimum_test_fills"), 20)
+        self.assertNotEqual(
+            original.pop("experiment_id"), sensitivity.pop("experiment_id")
+        )
+        self.assertNotEqual(
+            original.pop("config_sha256"), sensitivity.pop("config_sha256")
+        )
+        self.assertEqual(original, sensitivity)
 
     def test_token_features_are_path_aware_over_one_minute(self) -> None:
         batch = self._batch()
