@@ -2,13 +2,13 @@
 
 - Обновлено: 2026-08-14
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Stage 4h raw practical chain завершён;
-  candidate отклонён**
+- Текущий этап: **Stage 4i PMXT retest завершён;
+  0/12 configurations воспроизведены**
 - Historical data policy: **только PMXT v2 для всех новых strategy runs**;
   Kacho и Trent запрещены вне воспроизводимости завершённых этапов
-- Следующий deliverable: отдельный protocol для continuous
-  market-anchored path correction на новом data horizon; Stage 5 пока не
-  разрешён
+- Следующий deliverable: отдельный protocol для PMXT-native path-dependent
+  correction поверх continuous midpoint/logit с обязательным OOS proper-score
+  improvement; Stage 5 пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -454,6 +454,39 @@ path-dependent correction на новом development/prospective horizon.
 [ADR-0017](adr/0017-unsmoothed-practical-chain-rejected.md),
 [protocol](protocols/screening/0008_stage4h_practical_chain.md) и
 [config](../cfg/experiments/stage4h_practical_chain.json).
+
+### Stage 4i: PMXT retest исторически положительных configurations
+
+Статус: **completed 2026-08-14; `0/12 replicated`; no paper/live candidate**.
+
+- Без нового search зафиксированы C1–C9 и M2–M4, ранее показавшие
+  положительный development PnL или положительный промежуточный observation.
+- Общий PMXT-only период `[2026-04-22, 2026-05-18)` содержит 29,952
+  BTC/ETH/SOL/XRP 5m markets. Полные causal snapshots доступны для 29,919
+  (99.890%); 33 missing rows не подменены другим источником.
+- Четыре expanding validation folds заканчиваются 14 мая; final diagnostic
+  14–18 мая оценивается после fit на всём development. Этот interval раньше
+  уже виделся в Kacho experiments и является source replication, а не новым
+  независимым holdout.
+- Ни одна configuration не прошла frozen gate. BTC C2/C7 сохранили
+  `+94.86/+89.30 USDC` development PnL, но одинаковый final дал `-15.11` и
+  `-20.97` в 2¢ stress. Pooled C9 перешёл от `+74.23` к `-55.68`; SOL C4/C8
+  имеет около +8 primary final, но около -4.7 stress.
+- C6 train-median persistence скачала с 0.186–0.190 во folds до 0.893 после
+  full-development fit и дала 0 final fills. Quantile policy признана
+  практически нестабильной.
+- На всех causal-valid decisions ни coarse lookup, ни M2–M4 не улучшили
+  Brier относительно current midpoint. Старые положительные PnL нельзя
+  связать с добавочной terminal-forecast information.
+- Self-review подтвердил chronology/uniqueness/ledger/stress invariants,
+  PMXT-only provenance и SHA-256 всех 39 artifacts; Plotly comparison, BTC и
+  SOL diagnostics отрендерены и просмотрены.
+
+Подробности:
+[Stage 4i report](reports/murtazin_pmxt_positive_retest_stage4i.md),
+[ADR-0018](adr/0018-stage4i-pmxt-positive-retest-rejected.md),
+[protocol](protocols/screening/0009_stage4i_pmxt_positive_retest.md) и
+[config](../cfg/experiments/stage4i_pmxt_positive_retest.json).
 
 ## Этап 5. Prospective paper trading
 

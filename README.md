@@ -23,6 +23,8 @@ Markov формула отдельно проверена и отклонена 
 terminal Markov модель Stage 4g устранила ложный longshot edge, но не дала
 сигналов. Raw absorbing chain Stage 4h без smoothing дала 5,713
 fills, но отклонена из-за большого убытка и coarse-state selection bias.
+Повторная проверка 12 прежних positive-development configurations на одном
+PMXT-only периоде Stage 4i не воспроизвела ни одного paper candidate.
 
 - [Ответы по площадке, профилям и моделям](docs/reports/murtazin_strategy_reconstruction.md)
 - [Практический план](docs/plan.md)
@@ -130,6 +132,15 @@ bucket-average probability завышает win rate выбранных дешё
 tokens. Smoothing эту потерю информации не исправляет. Holdout не
 открывался; Stage 4h не допускается к paper/live. Детали — в
 [Stage 4h report](docs/reports/murtazin_practical_chain_stage4h.md).
+
+Этап 4i заново обучил и проверил C1–C9 и M2–M4 на 29,952 PMXT-only
+BTC/ETH/SOL/XRP 5m markets. Ни один вариант не прошёл development, final и
+same-fill stress gates одновременно. BTC C2/C7 сохранили положительный
+development PnL, но потеряли `15.11 USDC` на final; небольшой SOL final плюс
+стал отрицательным при 2¢/share stress. Все terminal models имеют Brier не
+лучше current midpoint. Итог — `0/12 replicated`, paper/live по-прежнему не
+разрешён. Детали — в
+[Stage 4i report](docs/reports/murtazin_pmxt_positive_retest_stage4i.md).
 
 Запуск аудита:
 
