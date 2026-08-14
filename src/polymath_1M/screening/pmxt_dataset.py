@@ -18,6 +18,7 @@ import pyarrow.parquet as pq
 from polymath_1M.historical.pmxt import (
     load_pmxt_archive_config,
 )
+from polymath_1M.strategy.parameters import load_strategy_config
 
 from .config import ScreeningConfig, load_screening_config
 
@@ -390,7 +391,20 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
     universe_manifest = json.loads(universe_manifest_path.read_text(encoding="utf-8"))
     if universe_manifest.get("data_contract_sha256") != config.data_contract_sha256:
         raise ScreeningDatasetError("universe and screening config hashes differ")
-    markets = pq.read_table(universe_path).to_pylist()
+    universe_markets = pq.read_table(universe_path).to_pylist()
+    allowed = {
+        (asset, strategy.duration)
+        for strategy_path in config.strategy_configs
+        for strategy in (load_strategy_config(strategy_path),)
+        for asset in strategy.assets
+    }
+    markets = [
+        market
+        for market in universe_markets
+        if (str(market["asset"]), str(market["duration"])) in allowed
+    ]
+    if not markets:
+        raise ScreeningDatasetError("declared strategy universe is empty")
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for market in markets:
         grouped[_hour_key(int(market["market_start_ms"]))].append(market)
@@ -476,6 +490,8 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
         "data_contract_sha256": config.data_contract_sha256,
         "created_at": datetime.now(UTC).isoformat(),
         "universe_sha256": universe_manifest["universe_sha256"],
+        "universe_market_count": len(universe_markets),
+        "declared_market_keys": [list(item) for item in sorted(allowed)],
         "hour_count": len(inventory),
         "market_count": len(markets),
         "valid_count": sum(int(item["valid_count"]) for item in inventory),

@@ -94,3 +94,6 @@ causal `best_bid`/`best_ask` hints и сохраняет restartable hourly chec
 conditional `arg_max` вместо размножения каждого event по трём cutoff rows.
 Сохранённые checkpoints остаются совместимы, потому что cutoff и tie-break
 правила не изменились.
+Builder также фильтрует Gamma universe по asset/duration, объявленным в
+strategy configs. Для Stage 4i это удаляет только неиспользуемые 15m/1h rows:
+все 29,952 BTC/ETH/SOL/XRP 5m markets остаются в dataset.
