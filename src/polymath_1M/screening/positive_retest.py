@@ -607,6 +607,34 @@ def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     metrics["status_counts"] = dict(
         sorted(Counter(row["status"] for row in rows).items())
     )
+    valid_forecasts = [
+        row
+        for row in rows
+        if row["status"] != "data_invalid"
+        and math.isfinite(float(row["forecast_probability"]))
+        and math.isfinite(float(row["outcome_side"]))
+    ]
+    if valid_forecasts:
+        probability = torch.tensor(
+            [row["forecast_probability"] for row in valid_forecasts],
+            dtype=torch.float64,
+        )
+        outcome = torch.tensor(
+            [row["outcome_side"] for row in valid_forecasts], dtype=torch.float64
+        )
+        clipped = torch.clamp(probability, 1e-12, 1 - 1e-12)
+        metrics["all_valid_forecast"] = {
+            "markets": len(valid_forecasts),
+            "brier_score": float((probability - outcome).square().mean().item()),
+            "log_loss": float(
+                -(outcome * torch.log(clipped) + (1 - outcome) * torch.log(1 - clipped))
+                .mean()
+                .item()
+            ),
+            "calibration_gap": float((probability - outcome).mean().item()),
+        }
+    else:
+        metrics["all_valid_forecast"] = None
     return metrics
 
 

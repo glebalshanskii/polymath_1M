@@ -69,7 +69,9 @@ threshold фиксирован числом. M5 исключена как look-a
 
 Для каждого ID сохраняются coverage, funnel/status counts, fills, PnL, profit
 factor, maximum drawdown, cash turnover, return on turnover, результаты каждого
-fold, 2-cent stress и Plotly equity diagnostics.
+fold, 2-cent stress и Plotly equity diagnostics. Brier score, log loss и
+calibration gap считаются отдельно на fills и на всех causal-valid decisions;
+последний срез нужен для сравнения forecast без selection по entry filters.
 
 `replicated_positive` присваивается только как **signal/source-screening**
 verdict, если одновременно:

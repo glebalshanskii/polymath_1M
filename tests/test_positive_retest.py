@@ -8,6 +8,7 @@ from polymath_1M.domain import DecisionBatch
 from polymath_1M.screening.positive_retest import (
     EXPECTED_CONFIG_IDS,
     _persistence_threshold,
+    _summary,
     load_positive_retest_config,
     token_features,
 )
@@ -74,6 +75,42 @@ class PositiveRetestTest(unittest.TestCase):
             _persistence_threshold(config.configurations[6], self._batch(), model),
             0.14,
         )
+
+    def test_summary_scores_all_valid_forecasts_not_only_fills(self) -> None:
+        rows = [
+            self._summary_row("a", 1, 0.8, 1.0, True, "filled", 1.0),
+            self._summary_row("b", 2, 0.2, 0.0, False, "range", 0.0),
+            self._summary_row("c", 3, 0.9, 0.0, False, "data_invalid", 0.0),
+        ]
+        summary = _summary(rows)
+        self.assertEqual(summary["fills"], 1)
+        self.assertEqual(summary["all_valid_forecast"]["markets"], 2)
+        self.assertAlmostEqual(summary["all_valid_forecast"]["brier_score"], 0.04)
+
+    @staticmethod
+    def _summary_row(
+        condition_id: str,
+        decision_s: int,
+        probability: float,
+        outcome: float,
+        filled: bool,
+        status: str,
+        pnl: float,
+    ) -> dict[str, object]:
+        return {
+            "condition_id": condition_id,
+            "decision_s": decision_s,
+            "forecast_probability": probability,
+            "outcome_side": outcome,
+            "side": "UP",
+            "filled": filled,
+            "status": status,
+            "net_pnl": pnl,
+            "stress_2c_net_pnl": pnl,
+            "fill_cost": 1.0 if filled else 0.0,
+            "platform_fee": 0.0,
+            "extra_cost": 0.0,
+        }
 
     @staticmethod
     def _batch() -> DecisionBatch:
