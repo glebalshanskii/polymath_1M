@@ -18,6 +18,7 @@ import pyarrow.parquet as pq
 from polymath_1M.historical.pmxt import (
     load_pmxt_archive_config,
 )
+from polymath_1M.strategy.parameters import load_strategy_config
 
 from .config import ScreeningConfig, load_screening_config
 
@@ -26,7 +27,7 @@ class ScreeningDatasetError(RuntimeError):
     """The PMXT screening dataset cannot satisfy the frozen data contract."""
 
 
-BOOK_CONTRACT = "causal_best_hints_assume_10_usdc_at_execution_top_v2"
+BOOK_CONTRACT = "causal_price_change_hints_assume_10_usdc_at_execution_top_v3"
 LEGACY_BOOK_CONTRACT = "causal_best_hints_assume_10_usdc_at_execution_top"
 
 
@@ -155,48 +156,111 @@ def _query_causal_tops(
         signal_ms = int(market["market_end_ms"]) - (
             config.decision_seconds_before_end * 1_000
         )
-        cutoffs = {
-            "previous": signal_ms - config.transition_horizon_seconds * 1_000,
-            "signal": signal_ms,
-            "execution": signal_ms + config.execution_latency_ms,
-        }
-        for cutoff_name, cutoff_ms in cutoffs.items():
-            for outcome, token_key in (("Up", "token_up"), ("Down", "token_down")):
-                requests.append(
-                    {
-                        "condition_id": market["condition_id"],
-                        "market": market["condition_id"].encode(),
-                        "asset_id": market[token_key],
-                        "outcome": outcome,
-                        "cutoff_name": cutoff_name,
-                        "cutoff_ms": cutoff_ms,
-                    }
-                )
+        for outcome, token_key in (("Up", "token_up"), ("Down", "token_down")):
+            requests.append(
+                {
+                    "condition_id": market["condition_id"],
+                    "market": market["condition_id"].encode(),
+                    "asset_id": market[token_key],
+                    "outcome": outcome,
+                    "previous_ms": signal_ms
+                    - config.transition_horizon_seconds * 1_000,
+                    "signal_ms": signal_ms,
+                    "execution_ms": signal_ms + config.execution_latency_ms,
+                }
+            )
     requested = pa.Table.from_pylist(requests)
     conditions = tuple(market["condition_id"].encode() for market in markets)
     placeholders = ",".join("?" for _ in conditions)
     sql = f"""
+        WITH events AS (
+            SELECT
+                r.condition_id,
+                r.outcome,
+                r.previous_ms,
+                r.signal_ms,
+                r.execution_ms,
+                epoch_ms(p.timestamp_received) AS receive_timestamp_ms,
+                epoch_ms(p.timestamp) AS source_timestamp_ms,
+                CAST(p.best_bid AS DOUBLE) AS best_bid,
+                CAST(p.best_ask AS DOUBLE) AS best_ask
+            FROM read_parquet(?) AS p
+            JOIN requested AS r
+              ON p.market = r.market AND p.asset_id = r.asset_id
+            WHERE p.market IN ({placeholders})
+              AND p.event_type = 'price_change'
+              AND epoch_ms(p.timestamp_received) <= r.execution_ms
+              AND p.best_bid IS NOT NULL
+              AND p.best_ask IS NOT NULL
+        ),
+        latest AS MATERIALIZED (
+            SELECT
+                condition_id,
+                outcome,
+                arg_max(receive_timestamp_ms, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= previous_ms)
+                    AS previous_receive,
+                arg_max(best_bid, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= previous_ms)
+                    AS previous_bid,
+                arg_max(best_ask, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= previous_ms)
+                    AS previous_ask,
+                arg_max(receive_timestamp_ms, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= signal_ms)
+                    AS signal_receive,
+                arg_max(best_bid, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= signal_ms)
+                    AS signal_bid,
+                arg_max(best_ask, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= signal_ms)
+                    AS signal_ask,
+                arg_max(receive_timestamp_ms, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= execution_ms)
+                    AS execution_receive,
+                arg_max(best_bid, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= execution_ms)
+                    AS execution_bid,
+                arg_max(best_ask, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= execution_ms)
+                    AS execution_ask
+            FROM events
+            GROUP BY condition_id, outcome
+        )
         SELECT
-            r.condition_id,
-            r.outcome,
-            r.cutoff_name,
-            epoch_ms(p.timestamp_received) AS receive_timestamp_ms,
-            CAST(p.best_bid AS DOUBLE) AS best_bid,
-            CAST(p.best_ask AS DOUBLE) AS best_ask
-        FROM read_parquet(?) AS p
-        JOIN requested AS r
-          ON p.market = r.market AND p.asset_id = r.asset_id
-        WHERE p.market IN ({placeholders})
-          AND epoch_ms(p.timestamp_received) <= r.cutoff_ms
-          AND p.best_bid IS NOT NULL
-          AND p.best_ask IS NOT NULL
-        QUALIFY row_number() OVER (
-            PARTITION BY r.condition_id, r.outcome, r.cutoff_name
-            ORDER BY p.timestamp_received DESC, p.timestamp DESC
-        ) = 1
+            condition_id, outcome, 'previous' AS cutoff_name,
+            previous_receive AS receive_timestamp_ms,
+            previous_bid AS best_bid, previous_ask AS best_ask
+        FROM latest WHERE previous_receive IS NOT NULL
+        UNION ALL
+        SELECT
+            condition_id, outcome, 'signal' AS cutoff_name,
+            signal_receive AS receive_timestamp_ms,
+            signal_bid AS best_bid, signal_ask AS best_ask
+        FROM latest WHERE signal_receive IS NOT NULL
+        UNION ALL
+        SELECT
+            condition_id, outcome, 'execution' AS cutoff_name,
+            execution_receive AS receive_timestamp_ms,
+            execution_bid AS best_bid, execution_ask AS best_ask
+        FROM latest WHERE execution_receive IS NOT NULL
     """
+    temporary_dir = Path(".tmp") / "stage4_pmxt_duckdb" / hour.replace(":", "")
+    temporary_dir.mkdir(parents=True, exist_ok=True)
     connection = duckdb.connect()
     try:
+        connection.execute("SET memory_limit='1GB'")
+        connection.execute("SET threads=2")
+        connection.execute("SET temp_directory=?", [str(temporary_dir)])
         connection.register("requested", requested)
         table = connection.execute(sql, [source_url, *conditions]).fetch_arrow_table()
     finally:
@@ -327,13 +391,27 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
     universe_manifest = json.loads(universe_manifest_path.read_text(encoding="utf-8"))
     if universe_manifest.get("data_contract_sha256") != config.data_contract_sha256:
         raise ScreeningDatasetError("universe and screening config hashes differ")
-    markets = pq.read_table(universe_path).to_pylist()
+    universe_markets = pq.read_table(universe_path).to_pylist()
+    allowed = {
+        (asset, strategy.duration)
+        for strategy_path in config.strategy_configs
+        for strategy in (load_strategy_config(strategy_path),)
+        for asset in strategy.assets
+    }
+    markets = [
+        market
+        for market in universe_markets
+        if (str(market["asset"]), str(market["duration"])) in allowed
+    ]
+    if not markets:
+        raise ScreeningDatasetError("declared strategy universe is empty")
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for market in markets:
         grouped[_hour_key(int(market["market_start_ms"]))].append(market)
     output_dir = root / "pmxt_hours"
     output_dir.mkdir(parents=True, exist_ok=True)
     inventory: list[dict[str, Any]] = []
+    print(f"Stage 4 PMXT cache: {len(markets)} markets / {len(grouped)} hours")
     with ThreadPoolExecutor(max_workers=config.pmxt_workers) as executor:
         iterator = iter(sorted(grouped.items()))
         futures = {}
@@ -344,10 +422,21 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
                 break
             future = executor.submit(_build_hour, hour, hour_rows, config, output_dir)
             futures[future] = hour
+        completed_count = 0
         while futures:
             completed = next(as_completed(futures))
             inventory.append(completed.result())
             del futures[completed]
+            completed_count += 1
+            if (
+                completed_count == 1
+                or completed_count % 24 == 0
+                or completed_count == len(grouped)
+            ):
+                print(
+                    f"Stage 4 PMXT cache progress: {completed_count}/{len(grouped)}",
+                    flush=True,
+                )
             try:
                 hour, hour_rows = next(iterator)
             except StopIteration:
@@ -401,6 +490,8 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
         "data_contract_sha256": config.data_contract_sha256,
         "created_at": datetime.now(UTC).isoformat(),
         "universe_sha256": universe_manifest["universe_sha256"],
+        "universe_market_count": len(universe_markets),
+        "declared_market_keys": [list(item) for item in sorted(allowed)],
         "hour_count": len(inventory),
         "market_count": len(markets),
         "valid_count": sum(int(item["valid_count"]) for item in inventory),
