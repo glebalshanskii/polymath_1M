@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "experiment_id": "stage4k_edge_anti_edge_diagnostic",
+  "source_run_dir": "outputs/positive_retest/20260814T134107Z_stage4i_pmxt_positive_retest_min20_20260422_20260518",
+  "source_result_sha256": "3f76757169c0e69137ed6a0bf9ac9daf860b39d1b1724e661b03470c68cef41a",
+  "source_artifact_manifest_sha256": "5d77160cde2628be9c0cedefe27a5b195c7bf3244661937bcdc749c135cdd9c1",
+  "source_experiment_id": "stage4i_pmxt_positive_retest_min20_20260422_20260518",
+  "successful_configuration_ids": [
+    "c2_stage4c_btc",
+    "c3_stage4c_eth",
+    "c4_stage4c_sol",
+    "c5_stage4c_xrp",
+    "c7_stage4d_btc_m0",
+    "c8_stage4d_sol",
+    "c9_stage4d_pooled"
+  ],
+  "success_rule": {
+    "development_stress_pnl_strictly_positive": true,
+    "final_minimum_fills": 20,
+    "final_primary_pnl_strictly_positive": true,
+    "final_profit_factor_strictly_above_one": true,
+    "combine": "or"
+  },
+  "cost_scenarios_per_share": [0.0, 0.01, 0.02],
+  "minimum_segment_fills": 20,
+  "minimum_transfer_fills_per_split": 10,
+  "fixed_bins": {
+    "signal_ask": [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.000001],
+    "forecast_probability": [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.000001],
+    "net_edge": [-1.0, 0.01, 0.02, 0.05, 0.1, 1.0],
+    "persistence": [0.0, 0.25, 0.5, 0.75, 0.9, 1.000001],
+    "support": [0.0, 50.0, 200.0, 1000.0, 5000.0, 1000000000.0],
+    "signed_move": [-1.0, -0.05, -0.01, 0.01, 0.05, 1.0],
+    "utc_hour": [0.0, 6.0, 12.0, 18.0, 24.0]
+  },
+  "categorical_features": ["asset", "side", "state_bin"],
+  "preserve_signals_and_fills": true
+}

@@ -2,13 +2,14 @@
 
 - Обновлено: 2026-08-14
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Stage 4j zero-extra-cost sensitivity завершён;
-  10/12 literal-positive, 9/12 stability-aware**
+- Текущий этап: **Stage 4k edge / anti-edge diagnostic завершён;
+  наиболее сильная hypothesis — asset-specific strong 60-second momentum**
 - Historical data policy: **только PMXT v2 для всех новых strategy runs**;
   Kacho и Trent запрещены вне воспроизводимости завершённых этапов
-- Следующий deliverable: выбрать deduplicated signal candidates и до нового
-  target зафиксировать prospective measurement реальных fill/execution costs;
-  Stage 5 пока не разрешён
+- Следующий deliverable: обсудить SOL/XRP momentum hypothesis и до нового
+  disjoint PMXT target зафиксировать paired terminal-model versus
+  market-mid/momentum control, а также prospective measurement реальных
+  fill/execution costs; Stage 5 пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -527,6 +528,35 @@ path-dependent correction на новом development/prospective horizon.
 [ADR-0020](adr/0020-stage4j-cost-scenario-ladder.md),
 [protocol](protocols/screening/0010_stage4j_zero_extra_cost.md) и
 [config](../cfg/experiments/stage4j_zero_extra_cost.json).
+
+### Stage 4k: edge / anti-edge diagnostic
+
+Статус: **completed 2026-08-14; post-hoc; hypothesis generation only**.
+
+- По прежнему agreed rule выбраны C2, C3, C4, C5, C7, C8 и C9: positive
+  Development 2¢ stress либо positive Final 1¢ с минимум 20 fills и PF > 1.
+- Это не семь независимых подтверждений. C2/C7 имеют 267 exact overlapping
+  fills (89.9% меньшего ledger), C4/C8 — 402 (100% меньшего ledger).
+- Самый сильный переносимый сегмент — `signed_move >= 0.05` за последние 60
+  секунд в сторону покупки. SOL дал `+5.98/+6.89¢ per share` на
+  Development/Final и `+99.04/+43.59 USDC` после 2¢; XRP —
+  `+6.95/+4.50¢` и `+11.77/+10.83 USDC` после 2¢.
+- Anti-edge: SOL/pooled теряют на слабом движении `+1..5¢` и на сильном
+  движении против token. Pooled C9 дополнительно скрывает ETH regime flip
+  `+6.29 -> -17.53¢ per share` и отрицательный XRP.
+- Terminal model систематически переоценивает edge: на Final forecast error
+  достигает `-7.17¢` у BTC и `-6.14¢` у pooled C9. Reported net edge не
+  ранжирует realized PnL монотонно; Markov/coarse lookup не признан источником
+  edge.
+- Полные fixed-bucket tables, cost ladder, overlap и Plotly diagnostic
+  сохранены. Поскольку оба split уже просмотрены, новый filter требует
+  disjoint PMXT-периода; paper/live не разрешён.
+
+Подробности:
+[Stage 4k report](reports/murtazin_edge_anti_edge_stage4k.md),
+[ADR-0022](adr/0022-stage4k-edge-is-path-and-asset-dependent.md),
+[protocol](protocols/screening/0011_stage4k_edge_anti_edge.md) и
+[config](../cfg/experiments/stage4k_edge_anti_edge.json).
 
 ## Этап 5. Prospective paper trading
 

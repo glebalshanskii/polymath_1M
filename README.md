@@ -28,7 +28,9 @@ PMXT-only периоде Stage 4i не воспроизвела ни одног�
 Stage 4j показал, что часть отказов объясняется assumed per-share costs:
 без искусственной надбавки, но с Gamma fee, 10/12 configurations имеют
 положительный Development или Final point result; это post-hoc upper bound,
-а не разрешение live.
+а не разрешение live. Stage 4k показал, что семь выбранных configurations —
+пять signal families, а наиболее сильный повторяющийся edge связан с
+asset-specific 60-second path, не с величиной terminal forecast.
 
 - [Ответы по площадке, профилям и моделям](docs/reports/murtazin_strategy_reconstruction.md)
 - [Практический план](docs/plan.md)
@@ -153,6 +155,17 @@ development PnL, но потеряли `15.11 USDC` на final; небольшо
 stability-aware — 9/12. Теперь 0¢/1¢/2¢ публикуются как разные cost scenarios;
 фактическую execution cost нужно измерить prospectively. Детали — в
 [Stage 4j report](docs/reports/murtazin_zero_extra_cost_stage4j.md).
+
+Этап 4k разложил семь согласованно «успешных» configurations по asset, side,
+цене, forecast, persistence, support, 60-second move и UTC time. C2/C7 и
+C4/C8 почти полностью дублируют сделки. Самый сильный cross-split сегмент —
+движение token midpoint минимум на 5¢ в сторону покупки: SOL и XRP остаются
+положительными даже в same-fill 2¢ scenario. Слабое движение 1–5¢ и сильное
+движение против token образуют anti-edge; pooled strategy скрывает ETH regime
+flip и отрицательный XRP. Model-implied edge не переносится и не ранжирует
+realized PnL монотонно, поэтому следующий кандидат должен сравнить terminal
+model с простым market-mid/momentum control на новом PMXT-периоде. Детали — в
+[Stage 4k report](docs/reports/murtazin_edge_anti_edge_stage4k.md).
 
 Запуск аудита:
 
