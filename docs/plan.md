@@ -45,7 +45,8 @@ prospective paper trading.
 
 ## Этап 1. Profile audit
 
-Статус: **completed 2026-08-12**.
+Статус: **completed 2026-08-12; retired, local artifacts removed
+2026-08-14**.
 
 ### Работы
 
@@ -84,8 +85,11 @@ prospective paper trading.
 - Behavior constraints подтверждают фокус на BTC/ETH, 5m/15m и почти
   исключительно BUY; B27 действительно multi-asset, но также в основном
   BTC 5m. Размеры аккаунтов в strategy не копируются.
-- Код/config/tests коммитятся; тяжёлый 53 GB run остаётся в ignored
-  `outputs/profile_audit/20260812T163243Z_murtazin_profiles_2026_03_04/`.
+- Код/config/tests и компактный report сохранены в git. Локальный 53 GB run
+  `outputs/profile_audit/20260812T163243Z_murtazin_profiles_2026_03_04/`
+  удалён без архива 2026-08-14 по решению владельца проекта: Stage 1 закрыт и
+  больше не является зависимостью strategy pipeline. Повторная проверка raw
+  ledger потребует новой выгрузки Polymarket Data API.
 
 Подробности: [Stage 1 report](reports/murtazin_profile_audit_stage1.md) и
 [ADR-0002](adr/0002-profile-audit-data-contract.md).
@@ -93,8 +97,10 @@ prospective paper trading.
 ### Acceptance evaluation
 
 - **partial:** source links и returned proxy mapping сохранены; B27 on-chain
-  identity chain остаётся unresolved. Все raw bytes имеют SHA-256 inventory,
-  но у 51,192 recovered files раннего collector нет request URL/time metadata;
+  identity chain остаётся unresolved. Во время run все raw bytes были покрыты
+  SHA-256 inventory, но у 51,192 recovered files раннего collector не было
+  request URL/time metadata; локальные raw/SQLite/inventory впоследствии
+  удалены согласно [ADR-0021](adr/0021-stage1-local-artifacts-removed.md);
 - **pass:** PnL/count/biggest-win получили `not_reconstructable` с причиной;
 - **pass:** rewards/rebates и boundary-sensitive cash flow не смешаны с
   settled-market PnL;

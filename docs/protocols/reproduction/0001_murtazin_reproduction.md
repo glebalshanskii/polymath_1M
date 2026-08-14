@@ -2,7 +2,8 @@
 
 - Версия: `0.2`
 - Дата: 2026-08-12
-- Статус: **Stage 1 executed; Stage 2 collector implemented**
+- Статус: **Stage 1 executed and retired; Stage 2 collector implemented**
+- Retention amendment: **2026-08-14**
 - Source PDF SHA-256:
   `4441b4e2907c4650b2895057ad22babf834c1f746da5559cc6ab4190b1bbe866`
 - Decision: [ADR-0001](../../adr/0001-reproduction-contract.md)
@@ -87,9 +88,14 @@ together. Otherwise output is `different` or `not_reconstructable`, with the
 exact missing field.
 
 Stage 1 run and deviations are recorded in
-[the audit report](../../reports/murtazin_profile_audit_stage1.md). The raw
-artifacts stay under ignored `outputs/`; code and config are the reproducible
-contract.
+[the audit report](../../reports/murtazin_profile_audit_stage1.md). The
+original retention contract kept raw artifacts under ignored `outputs/`.
+
+Retention amendment 2026-08-14: the 53 GB raw/SQLite run was permanently
+removed without archive under
+[ADR-0021](../../adr/0021-stage1-local-artifacts-removed.md). Code, config and
+the compact report remain, but reproducing Stage 1 now requires a fresh API
+download. Experiment semantics and the historical verdict were not changed.
 
 ## 4. Market collector
 

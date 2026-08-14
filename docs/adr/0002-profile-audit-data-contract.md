@@ -41,6 +41,11 @@ Exchange/CTF и boundary-inventory reconciliation.
 
 ## Provenance и хранение
 
+Retention для выполненного Stage 1 run впоследствии superseded
+[ADR-0021](0021-stage1-local-artifacts-removed.md): локальные raw, SQLite и
+inventories удалены без архива 2026-08-14. Ниже сохранён исходный contract для
+возможного нового run.
+
 - raw API responses, SQLite и inventories находятся в ignored `outputs/`;
 - `raw_manifest.jsonl` записывается append-only в новых runs, а финальный
   `raw_manifest.json` дедуплицирует request records;
