@@ -107,3 +107,18 @@ strategy configs. Для Stage 4i это удаляет только неисп�
 увеличено с 6 до 16 в отдельном Stage 4i data-config. Это execution-only
 параметр: dataset identity, causal cutoff, universe и все параметры стратегий
 не изменены; уже завершённые hourly checkpoints используются повторно.
+
+## Amendment 2026-08-14: post-hoc minimum-20 sensitivity
+
+После просмотра результата пользователь признал исходный gate `final fills >=
+50` слишком высоким для четырёхдневного final interval и задал новый порог
+`final fills >= 20`. Исходный protocol, config и verdict остаются неизменными.
+Отдельный executable config
+[`stage4i_pmxt_positive_retest_min20.json`](../../../cfg/experiments/stage4i_pmxt_positive_retest_min20.json)
+меняет только `experiment_id` и `minimum_test_fills: 50 -> 20`; модели, даты,
+fit, сделки, PnL, PF, costs, stress и остальные gates не меняются.
+
+Поскольку порог выбран после просмотра final, новая версия является
+post-hoc sensitivity analysis, а не независимым confirmatory retest. Она может
+показать, зависел ли прежний verdict только от sample-size gate, но сама по
+себе не разрешает paper/live и не заменяет исходный результат Stage 4i.

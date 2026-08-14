@@ -40,6 +40,51 @@ development PnL, заново обучены и проверены на одно
 Этот final interval уже рассматривался в прежних Kacho experiments и поэтому
 является source-replication diagnostic, а не новым независимым holdout.
 
+## Post-hoc sensitivity: минимум 20 final fills
+
+После просмотра исходного результата minimum-final-fills gate снижен с 50 до
+20 как более практичный для четырёхдневного interval. Поскольку этот параметр
+участвует только в verdict, достаточная операция — deterministic re-evaluation
+готового `result.json` без повторного fit/backtest. Дополнительно был выполнен
+избыточный full-pipeline control на локальном cache: он не обращался к сети и
+подтвердил, что модели, сделки, PnL и все остальные gates совпадают. Изменился
+только sample-size gate: теперь его дополнительно проходят C2, C3, C5 и C7.
+Ни один итоговый verdict не изменился:
+`replicated_positive = []`.
+
+`PnL/PF` считается пройденным, только если одновременно `PnL > 0` и `PF > 1`.
+
+| ID | Coverage | Dev PnL/PF | Dev >=3/4 | Dev 2¢ | Final >=20 | Final PnL/PF | Final 2¢ | Verdict |
+|---|:---:|---:|:---:|---:|:---:|---:|---:|:---:|
+| C1 pooled Stage 4b | pass | fail: -788.27 / 0.661 | fail: 0/4 | fail: -865.54 | pass: 64 | fail: -129.62 / 0.658 | fail: -142.11 | fail |
+| C2 BTC Stage 4c | pass | pass: +94.86 / 1.117 | pass: 4/4 | pass: +54.79 | pass: 39 | fail: -15.11 / 0.879 | fail: -20.97 | fail |
+| C3 ETH Stage 4c | pass | fail: -29.27 / 0.920 | fail: 2/4 | fail: -44.37 | pass: 46 | pass: +6.85 / 1.038 | fail: -1.11 | fail |
+| C4 SOL Stage 4c | pass | pass: +14.04 / 1.025 | pass: 3/4 | fail: -24.60 | pass: 104 | pass: +8.05 / 1.056 | fail: -4.63 | fail |
+| C5 XRP Stage 4c | pass | pass: +17.02 / inf | pass: 3/4 | pass: +14.11 | pass: 48 | fail: -1.99 / 0.935 | fail: -7.17 | fail |
+| C6 pooled Stage 4c | pass | pass: +19.78 / 1.045 | fail: 2/4 | fail: -14.34 | fail: 0 | fail: 0 / — | fail: 0 | fail |
+| C7 BTC Stage 4d/M0 | pass | pass: +89.30 / 1.105 | pass: 3/4 | pass: +45.33 | pass: 39 | fail: -15.11 / 0.879 | fail: -20.97 | fail |
+| C8 SOL Stage 4d | pass | pass: +14.04 / 1.025 | pass: 3/4 | fail: -24.60 | pass: 102 | pass: +7.68 / 1.053 | fail: -4.79 | fail |
+| C9 pooled Stage 4d | pass | pass: +74.23 / 1.168 | pass: 3/4 | pass: +35.07 | pass: 99 | fail: -55.68 / 0.728 | fail: -67.62 | fail |
+| M2 continuous price | pass | fail: -6.77 / 0.969 | fail: 1/4 | fail: -19.90 | fail: 0 | fail: 0 / — | fail: 0 | fail |
+| M3 + recency decay | pass | fail: -42.39 / 0.898 | fail: 1/4 | fail: -63.64 | fail: 0 | fail: 0 / — | fail: 0 | fail |
+| M4 + microstructure | pass | pass: +10.56 / 1.026 | fail: 2/4 | fail: -12.67 | fail: 0 | fail: 0 / — | fail: 0 | fail |
+
+Ignored full-pipeline equality-control run:
+
+`outputs/positive_retest/20260814T134107Z_stage4i_pmxt_positive_retest_min20_20260422_20260518/`
+
+| Field | Value |
+|---|---|
+| Source commit | `a4b3d3ae6ec8426ec58d7bc6df0cc26f8bbe4510` |
+| Config SHA-256 | `3edceb41509ff3024f9d431f5695956f68e6a33946ccbbba61f9e66dddb32a2d` |
+| Result SHA-256 | `3f76757169c0e69137ed6a0bf9ac9daf860b39d1b1724e661b03470c68cef41a` |
+| Artifact manifest SHA-256 | `5d77160cde2628be9c0cedefe27a5b195c7bf3244661937bcdc749c135cdd9c1` |
+| Runtime | `7.56s` on NVIDIA GeForce RTX 3080 Ti Laptop GPU |
+
+Порог выбран после просмотра final, поэтому это sensitivity analysis, а не
+новый независимый confirmatory result. Он показывает, что исходный отказ не
+был следствием только требования 50 сделок.
+
 ## Что произошло с прежними положительными результатами
 
 Для C2–C9 новый development использует те же calendar folds и те же frozen
