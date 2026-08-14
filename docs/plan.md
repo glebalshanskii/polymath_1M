@@ -2,13 +2,13 @@
 
 - Обновлено: 2026-08-14
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Stage 4i PMXT retest завершён;
-  0/12 configurations воспроизведены**
+- Текущий этап: **Stage 4j zero-extra-cost sensitivity завершён;
+  10/12 literal-positive, 9/12 stability-aware**
 - Historical data policy: **только PMXT v2 для всех новых strategy runs**;
   Kacho и Trent запрещены вне воспроизводимости завершённых этапов
-- Следующий deliverable: отдельный protocol для PMXT-native path-dependent
-  correction поверх continuous midpoint/logit с обязательным OOS proper-score
-  improvement; Stage 5 пока не разрешён
+- Следующий deliverable: выбрать deduplicated signal candidates и до нового
+  target зафиксировать prospective measurement реальных fill/execution costs;
+  Stage 5 пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -495,6 +495,32 @@ path-dependent correction на новом development/prospective horizon.
 [protocol](protocols/screening/0009_stage4i_pmxt_positive_retest.md) и
 [original config](../cfg/experiments/stage4i_pmxt_positive_retest.json),
 [minimum-20 config](../cfg/experiments/stage4i_pmxt_positive_retest_min20.json).
+
+### Stage 4j: same-fill zero-extra-cost sensitivity
+
+Статус: **completed 2026-08-14; post-hoc; no live authorization**.
+
+- На тех же Stage 4i fills искусственные `1¢/share` primary и `2¢/share`
+  stress надбавки убраны; Gamma platform fee сохранена.
+- PMXT/model pipeline не перезапускался. Все 12 ledgers проверены по pinned
+  source artifact hashes и детерминированно пересчитаны как
+  `gross_pnl - platform_fee`.
+- По literal rule `positive Development 0¢ OR positive Final >=20 fills`
+  проходят 10/12: C2–C9, M2 и M4. M2 имеет только 1/4 positive fold, поэтому
+  stability-aware result — 9/12.
+- C3/C4/C5/C8 положительны на Final при 0¢. C2/C7/C9 остаются отрицательными
+  даже без extra cost; C6/M2–M4 по-прежнему имеют 0 Final fills.
+- В дальнейшем signal edge и cost robustness публикуются отдельно как ladder
+  `0¢ / 1¢ / 2¢`; реальная execution distribution должна измеряться
+  prospectively.
+- Plotly comparison отрендерен и визуально проверен; accounting identities и
+  все output hashes прошли self-review.
+
+Подробности:
+[Stage 4j report](reports/murtazin_zero_extra_cost_stage4j.md),
+[ADR-0020](adr/0020-stage4j-cost-scenario-ladder.md),
+[protocol](protocols/screening/0010_stage4j_zero_extra_cost.md) и
+[config](../cfg/experiments/stage4j_zero_extra_cost.json).
 
 ## Этап 5. Prospective paper trading
 
