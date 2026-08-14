@@ -1,12 +1,13 @@
 # Практический план polymath_1M
 
-- Обновлено: 2026-08-13
+- Обновлено: 2026-08-14
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Stage 4g terminal Markov завершён без executable signals;
+- Текущий этап: **Stage 4h raw practical chain завершён;
   candidate отклонён**
 - Historical data policy: **только PMXT v2 для всех новых strategy runs**;
   Kacho и Trent запрещены вне воспроизводимости завершённых этапов
-- Следующий deliverable: PMXT-only Stage 4h dataset/protocol; Stage 5 пока не
+- Следующий deliverable: отдельный protocol для continuous
+  market-anchored path correction на новом data horizon; Stage 5 пока не
   разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
@@ -419,23 +420,40 @@ haircut, а article persistence `>=0.87` остаётся отдельным sta
 [frozen protocol](protocols/screening/0007_stage4g_terminal_markov.md) и
 [config](../cfg/experiments/stage4g_terminal_markov.json).
 
-### Следующий practical шаг: Stage 4h transition feature
+### Stage 4h: raw time-inhomogeneous absorbing chain
 
-Сначала строится единый PMXT-only dataset с L2 states на нескольких frozen
-horizons до resolution и исполнением по receive-time book после latency.
-Gamma используется только для universe/rules/fees/terminal outcomes. Kacho,
-Trent, Binance, frontend Chainlink history и OpenMarket не участвуют в
-features, fit, selection или PnL.
+Статус: **completed 2026-08-14; `rejected`; holdout unopened**.
 
-На этом dataset новый protocol должен оставить `tau=0.87` source-faithful
-reference, но проверить transition dynamics внутри terminal forecast, а не
-как hard veto после прогноза. Candidate сравнивается с market/current-state
-controls на одних PMXT opportunities. Если PMXT coverage недостаточна, статус
-будет `insufficient_data`, без подключения второго источника. Уже открытый
-May holdout остаётся только historical diagnostic; подтверждение требует
-нового prospective horizon.
+- PMXT-only BTC 5m path за последние 120 секунд разбит на восемь
+  checkpoints с шагом 15 секунд. Fit строит семь разных raw
+  `8x8` transition matrices и terminal `8x2` matrix.
+- Smoothing, pseudocount, shrinkage и `persistence >= 0.87` отсутствуют.
+  Все 56 transition rows и 8 terminal rows имеют train support не меньше
+  100 в каждом fold; raw chain технически определена.
+- На 6,911 OOS markets strategy дала 6,389 orders / 5,713 fills,
+  `-12,204.73 USDC`, PF `0.692`, return on turnover `-20.44%`; все 4/4
+  folds отрицательны. Stress `+1¢/share` дал `-20,417.99 USDC`.
+- 2,027 fills с ask ниже 10¢ дали `-9,730.59 USDC`, или 79.7%
+  общего убытка. Bucket forecast 9.6% против realized win rate 2.6%:
+  точный ask выбирает longshots внутри грубого 12.5¢ state.
+- Chain Brier `0.119031` хуже exact midpoint `0.117242` в aggregate и
+  на каждом checkpoint. Smoothing не исправит потерю информации
+  внутри state.
+- Full-L2 remote replay оказался непрактичным и был остановлен до
+  просмотра PnL. Frozen amendment использовал optimistic causal arrival
+  best-ask с предполагаемой depth 10 USDC. Даже этот мягкий proxy
+  не спас forecast.
+- Reserved holdout `[2026-06-09, 2026-06-21)` не читался.
 
-Data policy: [ADR-0016](adr/0016-pmxt-only-historical-market-data.md).
+Этот grid, folds и entry timing не tuning'ятся post-hoc. Если
+продолжать Markov direction, следующий practical experiment должен
+сохранить exact midpoint/logit как baseline и учить только небольшую
+path-dependent correction на новом development/prospective horizon.
+
+Подробности: [Stage 4h report](reports/murtazin_practical_chain_stage4h.md),
+[ADR-0017](adr/0017-unsmoothed-practical-chain-rejected.md),
+[protocol](protocols/screening/0008_stage4h_practical_chain.md) и
+[config](../cfg/experiments/stage4h_practical_chain.json).
 
 ## Этап 5. Prospective paper trading
 
