@@ -80,3 +80,12 @@ verdict, если одновременно:
 `insufficient_data`. Ни один исход этого этапа сам по себе не разрешает live:
 `replicated_positive` разрешает только следующий prospective paper-trading
 этап с заранее фиксированными sizing/risk limits.
+
+## Amendment 2026-08-14: bounded PMXT extraction
+
+Первый extraction attempt был остановлен до model run: шесть unbounded DuckDB
+queries заняли около 19 GB RAM и не создали общий manifest. Estimator, dates,
+models и thresholds не меняются. Повторный builder ограничивает каждый worker
+1 GB RAM и двумя CPU threads, использует только PMXT `price_change` rows с
+causal `best_bid`/`best_ask` hints и сохраняет restartable hourly checkpoints.
+Это тот же bounded top contract, который уже применён и проверен в Stage 4h.

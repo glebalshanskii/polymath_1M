@@ -26,7 +26,7 @@ class ScreeningDatasetError(RuntimeError):
     """The PMXT screening dataset cannot satisfy the frozen data contract."""
 
 
-BOOK_CONTRACT = "causal_best_hints_assume_10_usdc_at_execution_top_v2"
+BOOK_CONTRACT = "causal_price_change_hints_assume_10_usdc_at_execution_top_v3"
 LEGACY_BOOK_CONTRACT = "causal_best_hints_assume_10_usdc_at_execution_top"
 
 
@@ -187,6 +187,7 @@ def _query_causal_tops(
         JOIN requested AS r
           ON p.market = r.market AND p.asset_id = r.asset_id
         WHERE p.market IN ({placeholders})
+          AND p.event_type = 'price_change'
           AND epoch_ms(p.timestamp_received) <= r.cutoff_ms
           AND p.best_bid IS NOT NULL
           AND p.best_ask IS NOT NULL
@@ -195,8 +196,13 @@ def _query_causal_tops(
             ORDER BY p.timestamp_received DESC, p.timestamp DESC
         ) = 1
     """
+    temporary_dir = Path(".tmp") / "stage4_pmxt_duckdb" / hour.replace(":", "")
+    temporary_dir.mkdir(parents=True, exist_ok=True)
     connection = duckdb.connect()
     try:
+        connection.execute("SET memory_limit='1GB'")
+        connection.execute("SET threads=2")
+        connection.execute("SET temp_directory=?", [str(temporary_dir)])
         connection.register("requested", requested)
         table = connection.execute(sql, [source_url, *conditions]).fetch_arrow_table()
     finally:
@@ -334,6 +340,7 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
     output_dir = root / "pmxt_hours"
     output_dir.mkdir(parents=True, exist_ok=True)
     inventory: list[dict[str, Any]] = []
+    print(f"Stage 4 PMXT cache: {len(markets)} markets / {len(grouped)} hours")
     with ThreadPoolExecutor(max_workers=config.pmxt_workers) as executor:
         iterator = iter(sorted(grouped.items()))
         futures = {}
@@ -344,10 +351,21 @@ def build_stage4_pmxt_dataset(config_path: str | Path) -> Path:
                 break
             future = executor.submit(_build_hour, hour, hour_rows, config, output_dir)
             futures[future] = hour
+        completed_count = 0
         while futures:
             completed = next(as_completed(futures))
             inventory.append(completed.result())
             del futures[completed]
+            completed_count += 1
+            if (
+                completed_count == 1
+                or completed_count % 24 == 0
+                or completed_count == len(grouped)
+            ):
+                print(
+                    f"Stage 4 PMXT cache progress: {completed_count}/{len(grouped)}",
+                    flush=True,
+                )
             try:
                 hour, hour_rows = next(iterator)
             except StopIteration:
