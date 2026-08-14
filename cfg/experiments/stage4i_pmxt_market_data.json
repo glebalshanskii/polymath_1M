@@ -29,7 +29,7 @@
   "seed": 20260813,
   "device": "cuda",
   "dtype": "float64",
-  "pmxt_workers": 10,
+  "pmxt_workers": 16,
   "strategy_configs": [
     "cfg/strategies/stage4c_btc_5m.json",
     "cfg/strategies/stage4c_eth_5m.json",
