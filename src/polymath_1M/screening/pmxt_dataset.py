@@ -155,46 +155,103 @@ def _query_causal_tops(
         signal_ms = int(market["market_end_ms"]) - (
             config.decision_seconds_before_end * 1_000
         )
-        cutoffs = {
-            "previous": signal_ms - config.transition_horizon_seconds * 1_000,
-            "signal": signal_ms,
-            "execution": signal_ms + config.execution_latency_ms,
-        }
-        for cutoff_name, cutoff_ms in cutoffs.items():
-            for outcome, token_key in (("Up", "token_up"), ("Down", "token_down")):
-                requests.append(
-                    {
-                        "condition_id": market["condition_id"],
-                        "market": market["condition_id"].encode(),
-                        "asset_id": market[token_key],
-                        "outcome": outcome,
-                        "cutoff_name": cutoff_name,
-                        "cutoff_ms": cutoff_ms,
-                    }
-                )
+        for outcome, token_key in (("Up", "token_up"), ("Down", "token_down")):
+            requests.append(
+                {
+                    "condition_id": market["condition_id"],
+                    "market": market["condition_id"].encode(),
+                    "asset_id": market[token_key],
+                    "outcome": outcome,
+                    "previous_ms": signal_ms
+                    - config.transition_horizon_seconds * 1_000,
+                    "signal_ms": signal_ms,
+                    "execution_ms": signal_ms + config.execution_latency_ms,
+                }
+            )
     requested = pa.Table.from_pylist(requests)
     conditions = tuple(market["condition_id"].encode() for market in markets)
     placeholders = ",".join("?" for _ in conditions)
     sql = f"""
+        WITH events AS (
+            SELECT
+                r.condition_id,
+                r.outcome,
+                r.previous_ms,
+                r.signal_ms,
+                r.execution_ms,
+                epoch_ms(p.timestamp_received) AS receive_timestamp_ms,
+                epoch_ms(p.timestamp) AS source_timestamp_ms,
+                CAST(p.best_bid AS DOUBLE) AS best_bid,
+                CAST(p.best_ask AS DOUBLE) AS best_ask
+            FROM read_parquet(?) AS p
+            JOIN requested AS r
+              ON p.market = r.market AND p.asset_id = r.asset_id
+            WHERE p.market IN ({placeholders})
+              AND p.event_type = 'price_change'
+              AND epoch_ms(p.timestamp_received) <= r.execution_ms
+              AND p.best_bid IS NOT NULL
+              AND p.best_ask IS NOT NULL
+        ),
+        latest AS MATERIALIZED (
+            SELECT
+                condition_id,
+                outcome,
+                arg_max(receive_timestamp_ms, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= previous_ms)
+                    AS previous_receive,
+                arg_max(best_bid, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= previous_ms)
+                    AS previous_bid,
+                arg_max(best_ask, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= previous_ms)
+                    AS previous_ask,
+                arg_max(receive_timestamp_ms, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= signal_ms)
+                    AS signal_receive,
+                arg_max(best_bid, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= signal_ms)
+                    AS signal_bid,
+                arg_max(best_ask, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= signal_ms)
+                    AS signal_ask,
+                arg_max(receive_timestamp_ms, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= execution_ms)
+                    AS execution_receive,
+                arg_max(best_bid, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= execution_ms)
+                    AS execution_bid,
+                arg_max(best_ask, struct_pack(
+                    r := receive_timestamp_ms, s := source_timestamp_ms
+                )) FILTER (WHERE receive_timestamp_ms <= execution_ms)
+                    AS execution_ask
+            FROM events
+            GROUP BY condition_id, outcome
+        )
         SELECT
-            r.condition_id,
-            r.outcome,
-            r.cutoff_name,
-            epoch_ms(p.timestamp_received) AS receive_timestamp_ms,
-            CAST(p.best_bid AS DOUBLE) AS best_bid,
-            CAST(p.best_ask AS DOUBLE) AS best_ask
-        FROM read_parquet(?) AS p
-        JOIN requested AS r
-          ON p.market = r.market AND p.asset_id = r.asset_id
-        WHERE p.market IN ({placeholders})
-          AND p.event_type = 'price_change'
-          AND epoch_ms(p.timestamp_received) <= r.cutoff_ms
-          AND p.best_bid IS NOT NULL
-          AND p.best_ask IS NOT NULL
-        QUALIFY row_number() OVER (
-            PARTITION BY r.condition_id, r.outcome, r.cutoff_name
-            ORDER BY p.timestamp_received DESC, p.timestamp DESC
-        ) = 1
+            condition_id, outcome, 'previous' AS cutoff_name,
+            previous_receive AS receive_timestamp_ms,
+            previous_bid AS best_bid, previous_ask AS best_ask
+        FROM latest WHERE previous_receive IS NOT NULL
+        UNION ALL
+        SELECT
+            condition_id, outcome, 'signal' AS cutoff_name,
+            signal_receive AS receive_timestamp_ms,
+            signal_bid AS best_bid, signal_ask AS best_ask
+        FROM latest WHERE signal_receive IS NOT NULL
+        UNION ALL
+        SELECT
+            condition_id, outcome, 'execution' AS cutoff_name,
+            execution_receive AS receive_timestamp_ms,
+            execution_bid AS best_bid, execution_ask AS best_ask
+        FROM latest WHERE execution_receive IS NOT NULL
     """
     temporary_dir = Path(".tmp") / "stage4_pmxt_duckdb" / hour.replace(":", "")
     temporary_dir.mkdir(parents=True, exist_ok=True)

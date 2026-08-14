@@ -89,3 +89,8 @@ models и thresholds не меняются. Повторный builder огра�
 1 GB RAM и двумя CPU threads, использует только PMXT `price_change` rows с
 causal `best_bid`/`best_ask` hints и сохраняет restartable hourly checkpoints.
 Это тот же bounded top contract, который уже применён и проверен в Stage 4h.
+После первых шести bounded checkpoints SQL дополнительно заменён на
+семантически эквивалентный single-pass aggregation: один event scan и три
+conditional `arg_max` вместо размножения каждого event по трём cutoff rows.
+Сохранённые checkpoints остаются совместимы, потому что cutoff и tie-break
+правила не изменились.
