@@ -1,15 +1,14 @@
 # Практический план polymath_1M
 
-- Обновлено: 2026-08-14
+- Обновлено: 2026-08-15
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Stage 4k edge / anti-edge diagnostic завершён;
-  наиболее сильная hypothesis — asset-specific strong 60-second momentum**
+- Текущий этап: **Stage 4l market-anchored logistic запланирован; target
+  `[2026-06-09, 2026-06-21)` закрыт**
 - Historical data policy: **только PMXT v2 для всех новых strategy runs**;
   Kacho и Trent запрещены вне воспроизводимости завершённых этапов
-- Следующий deliverable: обсудить SOL/XRP momentum hypothesis и до нового
-  disjoint PMXT target зафиксировать paired terminal-model versus
-  market-mid/momentum control, а также prospective measurement реальных
-  fill/execution costs; Stage 5 пока не разрешён
+- Следующий deliverable: PR 4l-A — causal PMXT top/path feature cache до
+  `2026-06-09`, dataset manifests и receive-time/no-lookahead tests; Stage 5
+  пока не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -557,6 +556,34 @@ path-dependent correction на новом development/prospective horizon.
 [ADR-0022](adr/0022-stage4k-edge-is-path-and-asset-dependent.md),
 [protocol](protocols/screening/0011_stage4k_edge_anti_edge.md) и
 [config](../cfg/experiments/stage4k_edge_anti_edge.json).
+
+### Stage 4l: market-anchored regularized logistic
+
+Статус: **planned 2026-08-15; implementation not started; target unopened**.
+
+- Один market даёт один UP target; DOWN forecast равен `1 - p_up`.
+- Causal Polymarket midpoint используется как fixed logit offset. Маленькая
+  ridge-regularized модель учит только calibration/path correction.
+- Последние 120 секунд представлены changes за 15/30/60/120 секунд и frozen
+  piecewise basis около 1¢/5¢. Joint model имеет asset × path interactions,
+  но SOL/XRP trading results оцениваются отдельно.
+- Четыре ablations LR0–LR3 последовательно добавляют shared path, asset path и
+  existing lookup/Markov features. Markov остаётся только при incremental
+  forecast и trading value против LR2.
+- Старый просмотренный период до 18 мая служит initial train. Три scored
+  expanding validation folds покрывают 18 мая — 9 июня. Reserved target
+  9–21 июня не читается до отдельного candidate-freeze PR.
+- Быстрый PMXT cache хранит causal top/path для всех markets. Full L2
+  восстанавливается только для union реально возникших orders, после чего
+  FAK исполняется через EV-preserving limit с exact Gamma fee.
+- Реализация разбита на отдельные PR: 4l-A data, 4l-B model/tests, 4l-C
+  development/proposal, 4l-D one-shot target и 4l-E prospective shadow.
+  Каждый PR заканчивается self-review; 4l-D требует явного approval после
+  development result.
+
+Подробности:
+[Stage 4l plan](protocols/screening/0012_stage4l_regularized_logistic_plan.md)
+и [ADR-0023](adr/0023-stage4l-market-anchored-logistic.md).
 
 ## Этап 5. Prospective paper trading
 
