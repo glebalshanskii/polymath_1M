@@ -167,6 +167,15 @@ realized PnL монотонно, поэтому следующий кандид�
 model с простым market-mid/momentum control на новом PMXT-периоде. Детали — в
 [Stage 4k report](docs/reports/murtazin_edge_anti_edge_stage4k.md).
 
+Следующий Stage 4l запланирован как маленькая ridge-regularized logistic
+correction к causal Polymarket midpoint. Модель обучается на всех markets,
+использует path последних 120 секунд и asset interactions; отдельная ablation
+проверяет incremental value lookup/Markov features. Scored development идёт
+после 18 мая, reserved target 9–21 июня остаётся закрытым до отдельного PR.
+Historical full L2 строится только для реально возникших orders. План и
+последовательность PR описаны в
+[Stage 4l protocol](docs/protocols/screening/0012_stage4l_regularized_logistic_plan.md).
+
 Запуск аудита:
 
 ```bash
