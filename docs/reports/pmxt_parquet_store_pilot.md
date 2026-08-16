@@ -26,7 +26,7 @@ objects, фильтровать локально и сразу удалять ra
 - Compression: ZSTD level 9, row groups 131,072.
 - Hardware: RTX 3080 Ti host; extraction/compaction здесь CPU + NVMe, GPU не
   задействован.
-- Code branch: `research/pmxt-parquet-pilot`; итоговый commit фиксируется в PR.
+- Code commit: `1a745650387ae358dd0f33da09ae2133a67da233`.
 - Heavy artifacts:
   `data/market_store/pmxt_crypto_5m_pilot_20260608/` и
   `outputs/data_pilot/pmxt_crypto_5m_pilot_20260608/metrics.json`.
