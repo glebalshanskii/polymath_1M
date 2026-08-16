@@ -10,6 +10,7 @@ from .collector.runner import run_collector
 from .historical.binance import download_binance_context
 from .historical.download import download_kacho_dataset
 from .historical.overlap import run_pmxt_overlap_smoke
+from .historical.pmxt_store import build_pmxt_store_pilot
 from .historical.polymarket_chainlink import (
     download_polymarket_chainlink_context,
 )
@@ -141,6 +142,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-root",
         default="outputs/overlap",
         help="ignored directory for overlap artifacts",
+    )
+    store_pilot = subparsers.add_parser(
+        "pmxt-store-pilot",
+        help="build the one-day full-resolution local PMXT Parquet store pilot",
+    )
+    store_pilot.add_argument(
+        "--config",
+        default="cfg/experiments/pmxt_parquet_pilot_20260608.json",
+        help="path to the frozen one-day store pilot config",
+    )
+    store_pilot.add_argument(
+        "--resume",
+        action="store_true",
+        help="resume hours completed by an interrupted run of the same config",
     )
     universe = subparsers.add_parser(
         "stage4-build-universe",
@@ -564,6 +579,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(run_kacho_backtest(args.config, args.output_root))
     elif args.command == "pmxt-overlap-smoke":
         print(run_pmxt_overlap_smoke(args.config, args.output_root))
+    elif args.command == "pmxt-store-pilot":
+        print(build_pmxt_store_pilot(args.config, resume=args.resume))
     elif args.command == "stage4-build-universe":
         print(build_stage4_universe(args.config))
     elif args.command == "stage4-build-pmxt":

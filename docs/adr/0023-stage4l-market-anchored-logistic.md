@@ -29,8 +29,9 @@ Stage 4k показал, что model-implied edge coarse lookup/Markov strategi
   asset path плюс существующие lookup/Markov features.
 - Lambda выбирается по chronological OOF log loss, не по PnL. Entry использует
   положительный terminal EV, exact Gamma fee и EV-preserving FAK limit.
-- Historical full L2 восстанавливается только для union возникших orders;
-  optimistic assumed depth не является primary result.
+- Historical full L2 восстанавливается из canonical local Parquet store только
+  для union возникших orders; optimistic assumed depth не является primary
+  result.
 - PMXT v2 остаётся единственным historical market-data source. Reserved target
   `[2026-06-09, 2026-06-21)` не читается до отдельного freeze PR.
 
@@ -44,6 +45,10 @@ Stage 4l сначала проверит, добавляет ли path прог�
 сложную neural architecture или rolling online updates. Эти расширения не
 рассматриваются, пока маленький candidate не пройдёт historical target и
 prospective paper trading.
+
+До 4l-A отдельный storage follow-up выполняет boundary check и resumable
+canonical PMXT backfill. Само наличие target partitions на диске не открывает
+их для model pipeline: temporal access guard остаётся обязательным.
 
 Executable config появится в PR 4l-A/4l-B до scored run. Полный план:
 [Stage 4l protocol](../protocols/screening/0012_stage4l_regularized_logistic_plan.md).

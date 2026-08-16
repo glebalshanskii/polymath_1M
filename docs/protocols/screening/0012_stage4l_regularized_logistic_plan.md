@@ -100,20 +100,22 @@ $$
 label. Cancelled/unresolved markets не превращаются в проигрыш и исключаются
 с reason code.
 
-### Быстрый top/path cache
+### Canonical store и derived feature table
 
-Первый data pass читает PMXT `price_change` best-price hints и строит только
-required checkpoints. Один hourly object сканируется один раз; cutoff values
-агрегируются векторно. Existing compatible checkpoints переиспользуются по
-SHA-256, source object size и ETag.
+Stage 4l не читает PMXT по сети. Единственный historical input — локальный
+canonical Parquet store из [ADR-0024](../../adr/0024-canonical-pmxt-parquet-store.md),
+который сохраняет full-resolution events выбранных markets. Required
+checkpoints строятся из него как компактная rebuildable feature table.
+Receive-time cutoff и coverage проверяются заново; отсутствие checkpoint не
+заполняется будущим event.
 
 ### Targeted full-L2 execution cache
 
-Full historical L2 не строится для всех 69k markets. После signal-only
-development run берётся union `(condition_id, token_id, arrival window)` всех
-orders LR0–LR3. Только для этого frozen union PMXT raw events восстанавливают
-book к arrival time. FAK проходит реальные ask levels до заранее рассчитанного
-worst-price limit.
+После signal-only development run берётся union
+`(condition_id, token_id, arrival window)` всех orders LR0–LR3. Только для
+этого frozen union локальные canonical events восстанавливают book к arrival
+time. FAK проходит реальные ask levels до заранее рассчитанного worst-price
+limit. Дополнительного remote PMXT scan нет.
 
 Если signal union оказывается настолько широким, что targeted replay теряет
 преимущество, сначала публикуются count/byte/runtime estimate и отдельный
@@ -311,7 +313,8 @@ fixed size и frozen model минимум 30 календарных дней. Li
 | PR | Deliverable | Проверка | Stop/go |
 |---|---|---|---|
 | This PR | Plan, model/data decision и target isolation | docs/link review | Разрешает только реализацию data path |
-| 4l-A | PMXT top/path cache, manifests, causal feature tests | tiny sample, coverage, receive-time invariants, runtime estimate | Stop при invalid coverage; full target не читается |
+| Storage follow-up | Boundary check и resumable canonical PMXT backfill | coverage, physical order, size/runtime | Не запускает model fit |
+| 4l-A | Derived top/path feature table из canonical store | tiny sample, coverage, receive-time invariants | Stop при invalid coverage; target rows недоступны model code |
 | 4l-B | PyTorch LR0–LR3, config parser, analytical/model tests | CPU/CUDA parity, complement identity, no-lookahead mutation test | Разрешает signal-only development |
 | 4l-C | Development fit, targeted L2 replay, Plotly/report/ADR | three folds, source/artifact hashes, self-review | Создаёт максимум один proposal либо negative result |
 | 4l-D | One-shot target after explicit proposal approval | frozen config/hash and target guard | Pass разрешает только paper trading |
@@ -322,15 +325,15 @@ fixed size и frozen model минимум 30 календарных дней. Li
 
 ## Compute, memory и latency budget
 
-Главный bottleneck — PMXT network/I/O, а не fit:
+Главный одноразовый bottleneck — PMXT download; внутри Stage 4l — local I/O,
+а не fit:
 
-- development охватывает 1,152 hourly objects; target 288 objects не читаются
-  в 4l-A–4l-C;
-- перед полной extraction 24 последовательных development hours используются
-  как representative throughput smoke; публикуются bytes read, wall time,
-  peak RSS и прогноз полного runtime;
-- cache builder использует bounded DuckDB I/O, но весь feature/model kernel
-  после границы Arrow выполняется в PyTorch;
+- canonical backfill выполняется отдельным outcome/model-blind storage stage;
+  наличие target partitions на диске не разрешает model pipeline читать их;
+- one-day storage pilot уже зафиксировал bytes, runtime, peak memory и
+  full-coverage sizing; Stage 4l не повторяет remote throughput smoke;
+- derived feature builder использует bounded DuckDB/Arrow I/O, но весь
+  feature/model kernel после границы Arrow выполняется в PyTorch;
 - даже 70k markets × 64 float64 features занимают меньше 40 MB tensor memory;
   3 folds × 4 variants × 5 lambda — 60 маленьких convex fits;
 - training/inference выполняются batched на CUDA, CPU path остаётся parity
@@ -340,8 +343,8 @@ fixed size и frozen model минимум 30 календарных дней. Li
   1-second order latency; фактические p50/p95 фиксируются в 4l-B smoke.
 
 Targeted full-L2 replay оценивается отдельно по signal union после signal-only
-run. Он не запускается, если source bytes/runtime estimate и disk budget не
-записаны в run plan.
+run. Он читает canonical local partitions и не запускается, если local
+rows/runtime estimate и disk budget не записаны в run plan.
 
 ## Артефакты
 
@@ -357,7 +360,8 @@ run. Он не запускается, если source bytes/runtime estimate и
   runtime и dirty-tree flag;
 - SHA-256 artifact manifest.
 
-Heavy PMXT cache и outputs остаются ignored. Summary report, protocol
+Heavy canonical store, derived feature tables и outputs остаются ignored.
+Summary report, protocol
 amendments, ADR и compact tables коммитятся.
 
 ## Главные риски
