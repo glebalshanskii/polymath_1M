@@ -1,14 +1,14 @@
 # Практический план polymath_1M
 
-- Обновлено: 2026-08-15
+- Обновлено: 2026-08-16
 - Venue: **Polymarket CLOB**
-- Текущий этап: **Stage 4l market-anchored logistic запланирован; target
-  `[2026-06-09, 2026-06-21)` закрыт**
+- Текущий этап: **one-day PMXT Parquet pilot завершён; Stage 4l target
+  `[2026-06-09, 2026-06-21)` не открыт**
 - Historical data policy: **только PMXT v2 для всех новых strategy runs**;
   Kacho и Trent запрещены вне воспроизводимости завершённых этапов
-- Следующий deliverable: PR 4l-A — causal PMXT top/path feature cache до
-  `2026-06-09`, dataset manifests и receive-time/no-lookahead tests; Stage 5
-  пока не разрешён
+- Следующий deliverable после отдельного подтверждения: boundary check и
+  resumable staged whole-object backfill для BTC/ETH/SOL/XRP 5m; Stage 5 пока
+  не разрешён
 - Executable spec:
   [0001_murtazin_reproduction.md](protocols/reproduction/0001_murtazin_reproduction.md)
 
@@ -557,6 +557,31 @@ path-dependent correction на новом development/prospective horizon.
 [protocol](protocols/screening/0011_stage4k_edge_anti_edge.md) и
 [config](../cfg/experiments/stage4k_edge_anti_edge.json).
 
+### Canonical PMXT Parquet store pilot
+
+Статус: **completed 2026-08-16; Parquet accepted; full backfill not started**.
+
+- Один cohort day содержит 1,152 BTC/ETH/SOL/XRP 5m markets и 220,566,017
+  full-resolution PMXT events без downsampling.
+- Итоговый store занимает 1.378 GB в 12 `receive_date/asset` partitions;
+  покрыты 1,152/1,152 markets, physical-order violations — 0.
+- Warm point replay 395,572 rows занял 0.120 s, full-day aggregate scan —
+  0.124 s, streaming integrity validation всего store — 8.2 s. Локальное
+  чтение не требует ClickHouse.
+- Remote predicate прочитал 13.675 из 15.518 GB source objects, или 88.1%.
+  Поэтому full backfill должен скачивать каждый hourly object один раз,
+  фильтровать локально и удалять raw; многодневный global sort запрещён.
+- Линейная оценка по pilot для текущих 118.25 дней PMXT coverage — около
+  163 GB final store и 1.57 TB однократно скачанных source objects. Это sizing,
+  а не гарантия: activity меняется по дням.
+- Первые события рынка лежат практически ровно на `market_start - 2h`,
+  поэтому до backfill нужен отдельный проверочный scan предыдущего hour либо
+  больший padding. Stage 4l target pilot не читал.
+
+Подробности: [report](reports/pmxt_parquet_store_pilot.md),
+[ADR-0024](adr/0024-canonical-pmxt-parquet-store.md) и
+[protocol](protocols/storage/0001_pmxt_parquet_store_pilot.md).
+
 ### Stage 4l: market-anchored regularized logistic
 
 Статус: **planned 2026-08-15; implementation not started; target unopened**.
@@ -573,11 +598,13 @@ path-dependent correction на новом development/prospective horizon.
 - Старый просмотренный период до 18 мая служит initial train. Три scored
   expanding validation folds покрывают 18 мая — 9 июня. Reserved target
   9–21 июня не читается до отдельного candidate-freeze PR.
-- Быстрый PMXT cache хранит causal top/path для всех markets. Full L2
-  восстанавливается только для union реально возникших orders, после чего
-  FAK исполняется через EV-preserving limit с exact Gamma fee.
-- Реализация разбита на отдельные PR: 4l-A data, 4l-B model/tests, 4l-C
-  development/proposal, 4l-D one-shot target и 4l-E prospective shadow.
+- Derived top/path table строится из canonical local Parquet store. Full L2
+  вычисляется только для union реально возникших orders из тех же локальных
+  events, после чего FAK исполняется через EV-preserving limit с exact Gamma
+  fee.
+- Перед 4l-A нужен отдельный storage follow-up: boundary check и full backfill.
+  Затем идут 4l-A features, 4l-B model/tests, 4l-C development/proposal, 4l-D
+  one-shot target и 4l-E prospective shadow.
   Каждый PR заканчивается self-review; 4l-D требует явного approval после
   development result.
 

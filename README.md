@@ -172,9 +172,22 @@ correction к causal Polymarket midpoint. Модель обучается на �
 использует path последних 120 секунд и asset interactions; отдельная ablation
 проверяет incremental value lookup/Markov features. Scored development идёт
 после 18 мая, reserved target 9–21 июня остаётся закрытым до отдельного PR.
-Historical full L2 строится только для реально возникших orders. План и
-последовательность PR описаны в
+Derived features и historical full L2 для реально возникших orders строятся
+из canonical local PMXT Parquet store. План и последовательность PR описаны в
 [Stage 4l protocol](docs/protocols/screening/0012_stage4l_regularized_logistic_plan.md).
+
+Однодневный full-resolution PMXT Parquet pilot завершён: 1,152
+BTC/ETH/SOL/XRP 5m markets, 220.6 млн events и 1.378 GB local store.
+Parquet принят, ClickHouse сейчас не нужен. Remote filtering прочитал 88.1%
+source bytes, поэтому полный backfill будет отдельным resumable whole-object
+pipeline; он ещё не запущен. Контракт и результат:
+[ADR-0024](docs/adr/0024-canonical-pmxt-parquet-store.md),
+[pilot protocol](docs/protocols/storage/0001_pmxt_parquet_store_pilot.md) и
+[report](docs/reports/pmxt_parquet_store_pilot.md).
+
+```bash
+uv run polymath_1M pmxt-store-pilot
+```
 
 Запуск аудита:
 

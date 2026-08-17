@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "experiment_id": "pmxt_crypto_5m_parquet_pilot_20260608",
+  "pmxt_config": "cfg/datasets/pmxt_v2.json",
+  "universe_path": "data/historical/stage4c_pmxt_20260422_20260621/universe.parquet",
+  "store_root": "data/market_store/pmxt_crypto_5m_pilot_20260608",
+  "metrics_path": "outputs/data_pilot/pmxt_crypto_5m_pilot_20260608/metrics.json",
+  "cohort_start": "2026-06-08T00:00:00Z",
+  "cohort_end_exclusive": "2026-06-09T00:00:00Z",
+  "assets": ["BTC", "ETH", "SOL", "XRP"],
+  "duration": "5m",
+  "source_padding_hours": 2,
+  "expected_market_count": 1152,
+  "workers": 2,
+  "duckdb_memory_limit": "2GB",
+  "row_group_size": 131072,
+  "compression_level": 9
+}
